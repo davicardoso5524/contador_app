@@ -109,9 +109,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   void _openReport() {
-    Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => const ReportPage()));
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ReportPage(
+          moreFlavorsData: {
+            'churritos': _churritos,
+            'doce-de-leite': _churrosDoceLeite,
+            'chocolate': _chocolate,
+            'kibes': _kibes,
+          },
+        ),
+      ),
+    );
   }
 
   @override
@@ -389,7 +398,7 @@ class _AdjustSheetState extends State<_AdjustSheet> {
                     DropdownMenuItem(
                       value: 'doce-de-leite',
                       child: Text(
-                        'Churros Doce de Leite',
+                        'Doce de Leite',
                         style: TextStyle(fontSize: screenWidth < 360 ? 14 : 16),
                       ),
                     ),
@@ -544,7 +553,7 @@ class _AdjustSheetState extends State<_AdjustSheet> {
                     final flavorIndex = moreFlavorIndex - 1;
                     final flavorNames = [
                       'Churritos',
-                      'Churros Doce de Leite',
+                      'Doce de Leite',
                       'Chocolate',
                       'Kibes',
                     ];
