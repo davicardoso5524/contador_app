@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import '../shared/app_colors.dart';
 
 class FlavorCard extends StatelessWidget {
+  static const _borderRadius = BorderRadius.all(Radius.circular(12));
+  static const _innerBorderRadius = BorderRadius.all(Radius.circular(8));
+
   final String flavorName;
   final Color color;
   final int value;
@@ -18,57 +22,51 @@ class FlavorCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isLight = ThemeData.estimateBrightnessForColor(color) == Brightness.light;
-    final textColor = isLight ? Colors.black : Colors.white;
-
-    final innerBoxColor = isLight
-        ? Colors.white.withAlpha((0.6 * 255).round())
-        : Colors.black.withAlpha((0.18 * 255).round());
-
     return Material(
       color: color,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: _borderRadius,
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: _borderRadius,
         onTap: onTap ?? () {},
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Nome do sabor (sem botões)
               Text(
                 flavorName,
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: textColor),
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary,
+                ),
                 overflow: TextOverflow.ellipsis,
               ),
-
               const SizedBox(height: 8),
-
-              // Caixa com valor
               Container(
                 width: 70,
                 height: 70,
-                decoration: BoxDecoration(
-                  color: innerBoxColor,
-                  borderRadius: BorderRadius.circular(8),
+                decoration: const BoxDecoration(
+                  color: AppColors.innerBoxBackground,
+                  borderRadius: _innerBorderRadius,
                 ),
                 child: Center(
                   child: Text(
-                    '$value',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: textColor),
+                    value.toString(),
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                 ),
               ),
-
               const SizedBox(height: 6),
-
-              // Botão de reset (se não quiser também removo)
               if (onReset != null)
                 IconButton(
                   tooltip: 'Resetar',
                   onPressed: onReset,
-                  icon: Icon(Icons.restore, color: textColor),
+                  icon: const Icon(Icons.restore, color: AppColors.textPrimary),
                 ),
             ],
           ),

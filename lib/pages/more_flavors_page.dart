@@ -1,8 +1,16 @@
 import 'package:flutter/material.dart';
+import '../shared/app_colors.dart';
 
 /// Página com sabores adicionais (Churritos, Churros Doce de Leite, Chocolate, Kibes)
 /// Estado local com contadores independentes
 class MoreFlavorsPage extends StatefulWidget {
+  static const _gridDelegate = SliverGridDelegateWithFixedCrossAxisCount(
+    crossAxisCount: 2,
+    mainAxisSpacing: 18,
+    crossAxisSpacing: 18,
+    childAspectRatio: 0.95,
+  );
+
   final Function(Map<String, int>)? onCountersChanged;
   final int churritos;
   final int doceDeLeite;
@@ -55,12 +63,12 @@ class _MoreFlavorPageState extends State<MoreFlavorsPage> {
     }
   }
 
-  // Cores para os cartões
+  // Cores para os cartões (usando AppColors para padronização)
   static const List<Color> _colors = [
-    Colors.orange,
-    Colors.red,
-    Colors.brown,
-    Colors.amber,
+    AppColors.churritosColor,
+    AppColors.churrosDoceLeiteColor,
+    AppColors.chocolateColor,
+    AppColors.kibesColor,
   ];
 
   /// Atualiza os contadores com valores externos (vindo do menu de ajuste)
@@ -111,12 +119,7 @@ class _MoreFlavorPageState extends State<MoreFlavorsPage> {
                   vertical: verticalPadding,
                 ),
                 child: GridView(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 18,
-                    crossAxisSpacing: 18,
-                    childAspectRatio: 0.95,
-                  ),
+                  gridDelegate: MoreFlavorsPage._gridDelegate,
                   children: [
                     _buildFlavorCard('Churritos', _churritos, _colors[0], () {
                       setState(() => _churritos++);
@@ -150,60 +153,52 @@ class _MoreFlavorPageState extends State<MoreFlavorsPage> {
   }
 
   /// Constrói um card individual de sabor com nome e contador
-  /// Usa o mesmo estilo do FlavorCard original
+  /// Cores padronizadas: fundo = cor específica, texto = preto, caixa interior = 10% opacidade
+  /// Usa AppColors para consistência visual (sem lógica condicional de cor)
+  static const _borderRadius = BorderRadius.all(Radius.circular(12));
+  static const _innerBorderRadius = BorderRadius.all(Radius.circular(8));
+
   Widget _buildFlavorCard(
     String flavorName,
     int count,
     Color color,
     VoidCallback onTap,
   ) {
-    // Determina se a cor é clara ou escura
-    final isLight =
-        ThemeData.estimateBrightnessForColor(color) == Brightness.light;
-    final textColor = isLight ? Colors.black : Colors.white;
-
-    // Caixa interna com cor semi-transparente
-    final innerBoxColor = isLight
-        ? Colors.white.withAlpha((0.6 * 255).round())
-        : Colors.black.withAlpha((0.18 * 255).round());
-
     return Material(
       color: color,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: _borderRadius,
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: _borderRadius,
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Nome do sabor
               Text(
                 flavorName,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w700,
-                  color: textColor,
+                  color: AppColors.textPrimary,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
               const SizedBox(height: 8),
-              // Caixa com valor
               Container(
                 width: 70,
                 height: 70,
-                decoration: BoxDecoration(
-                  color: innerBoxColor,
-                  borderRadius: BorderRadius.circular(8),
+                decoration: const BoxDecoration(
+                  color: AppColors.innerBoxBackground,
+                  borderRadius: _innerBorderRadius,
                 ),
                 child: Center(
                   child: Text(
-                    '$count',
-                    style: TextStyle(
+                    count.toString(),
+                    style: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
-                      color: textColor,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                 ),

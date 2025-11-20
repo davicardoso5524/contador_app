@@ -15,6 +15,9 @@ class CounterService {
   List<CounterModel> _counters = [];
   List<CounterEvent> _events = [];
 
+  // Cache para totais diários (evita recalcular frequentemente)
+  final Map<String, Map<String, int>> _dateCache = {};
+
   static final CounterService _instance = CounterService._internal();
   factory CounterService() => _instance;
   CounterService._internal();
@@ -26,7 +29,9 @@ class CounterService {
 
     if (countersJson != null) {
       final list = jsonDecode(countersJson) as List<dynamic>;
-      _counters = list.map((e) => CounterModel.fromJson(e as Map<String, dynamic>)).toList();
+      _counters = list
+          .map((e) => CounterModel.fromJson(e as Map<String, dynamic>))
+          .toList();
     } else {
       _counters = [
         CounterModel(id: 'frango', name: 'Frango', value: 0),
@@ -42,7 +47,9 @@ class CounterService {
 
     if (eventsJson != null) {
       final list = jsonDecode(eventsJson) as List<dynamic>;
-      _events = list.map((e) => CounterEvent.fromJson(e as Map<String, dynamic>)).toList();
+      _events = list
+          .map((e) => CounterEvent.fromJson(e as Map<String, dynamic>))
+          .toList();
     } else {
       _events = [];
       await _saveEvents();
@@ -65,7 +72,10 @@ class CounterService {
   }
 
   CounterModel? getById(String id) {
-    return _counters.firstWhere((c) => c.id == id, orElse: () => throw Exception('Counter not found: $id'));
+    return _counters.firstWhere(
+      (c) => c.id == id,
+      orElse: () => throw Exception('Counter not found: $id'),
+    );
   }
 
   Future<void> addCounter(String name) async {
@@ -90,7 +100,10 @@ class CounterService {
   /// Se o delta for negativo e exceder o valor atual, ele será ajustado
   /// para apenas reduzir até 0 (não permite resultado negativo).
   /// O evento registrado terá o delta efetivamente aplicado.
-  Future<void> applyDelta(String id, int delta) async {
+  ///
+  /// Se [date] for fornecido, o evento será registrado para aquela data
+  /// (com timestamp no meio do dia). Se não for fornecido, usa DateTime.now().
+  Future<void> applyDelta(String id, int delta, [DateTime? date]) async {
     if (delta == 0) return;
     final idx = _counters.indexWhere((c) => c.id == id);
     if (idx == -1) throw Exception('Counter not found');
@@ -108,13 +121,28 @@ class CounterService {
 
     _counters[idx] = _counters[idx].copyWith(value: newValue);
 
+    // Usa a data fornecida ou DateTime.now()
+    final eventDate = date ?? DateTime.now();
+    // Define o timestamp para o meio do dia da data selecionada
+    final eventTimestamp = DateTime(
+      eventDate.year,
+      eventDate.month,
+      eventDate.day,
+      12,
+      0,
+      0,
+    ).millisecondsSinceEpoch;
+
     final event = CounterEvent(
       id: _uuid.v4(),
       counterId: id,
       delta: actualApplied,
-      timestamp: DateTime.now().millisecondsSinceEpoch,
+      timestamp: eventTimestamp,
     );
     _events.add(event);
+
+    // Limpa cache pois houve mudanças
+    _clearDateCache();
 
     await Future.wait([_saveCounters(), _saveEvents()]);
   }
@@ -135,8 +163,20 @@ class CounterService {
   }
 
   Map<String, int> totalsForDate(DateTime date) {
-    final start = DateTime(date.year, date.month, date.day).millisecondsSinceEpoch;
-    final end = DateTime(date.year, date.month, date.day, 23, 59, 59, 999).millisecondsSinceEpoch;
+    final start = DateTime(
+      date.year,
+      date.month,
+      date.day,
+    ).millisecondsSinceEpoch;
+    final end = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      23,
+      59,
+      59,
+      999,
+    ).millisecondsSinceEpoch;
 
     final Map<String, int> totals = {};
     for (var c in _counters) {
@@ -160,7 +200,15 @@ class CounterService {
   }
 
   Map<String, int> totalsUpToDate(DateTime date) {
-    final end = DateTime(date.year, date.month, date.day, 23, 59, 59, 999).millisecondsSinceEpoch;
+    final end = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      23,
+      59,
+      59,
+      999,
+    ).millisecondsSinceEpoch;
 
     final Map<String, int> totals = {};
     for (var c in _counters) {
@@ -176,12 +224,24 @@ class CounterService {
   }
 
   /// Totals for an inclusive date range: start..end (both inclusive)
-  Map<String,int> totalsForRange(DateTime start, DateTime end) {
+  Map<String, int> totalsForRange(DateTime start, DateTime end) {
     // normalize to epoch ms (start beginning of day, end end of day)
-    final s = DateTime(start.year, start.month, start.day).millisecondsSinceEpoch;
-    final e = DateTime(end.year, end.month, end.day, 23, 59, 59, 999).millisecondsSinceEpoch;
+    final s = DateTime(
+      start.year,
+      start.month,
+      start.day,
+    ).millisecondsSinceEpoch;
+    final e = DateTime(
+      end.year,
+      end.month,
+      end.day,
+      23,
+      59,
+      59,
+      999,
+    ).millisecondsSinceEpoch;
 
-    final Map<String,int> totals = {};
+    final Map<String, int> totals = {};
     for (var c in _counters) {
       totals[c.id] = 0;
     }
@@ -195,11 +255,31 @@ class CounterService {
   }
 
   /// Totals for a single date (start..end of that day), returns map counterId -> total
-  Map<String,int> totalsForSingleDate(DateTime date) {
-    final start = DateTime(date.year, date.month, date.day).millisecondsSinceEpoch;
-    final end = DateTime(date.year, date.month, date.day, 23, 59, 59, 999).millisecondsSinceEpoch;
+  /// Usa cache para evitar recálculos repetidos da mesma data
+  Map<String, int> totalsForSingleDate(DateTime date) {
+    final dateKey = '${date.year}-${date.month}-${date.day}';
 
-    final Map<String,int> totals = {};
+    // Retorna do cache se disponível
+    if (_dateCache.containsKey(dateKey)) {
+      return Map.from(_dateCache[dateKey]!);
+    }
+
+    final start = DateTime(
+      date.year,
+      date.month,
+      date.day,
+    ).millisecondsSinceEpoch;
+    final end = DateTime(
+      date.year,
+      date.month,
+      date.day,
+      23,
+      59,
+      59,
+      999,
+    ).millisecondsSinceEpoch;
+
+    final Map<String, int> totals = {};
     for (var c in _counters) {
       totals[c.id] = 0;
     }
@@ -209,6 +289,55 @@ class CounterService {
         totals[ev.counterId] = (totals[ev.counterId] ?? 0) + ev.delta;
       }
     }
+
+    // Armazena em cache para futuras consultas
+    _dateCache[dateKey] = Map.from(totals);
     return totals;
+  }
+
+  /// Limpa o cache de datas (chamado após modificações)
+  void _clearDateCache() => _dateCache.clear();
+
+  /// Retorna totais por sabor para cada dia em um intervalo.
+  /// Retorna `Map<DateTime, Map<String, int>>` onde:
+  /// - DateTime é o dia (sem hora)
+  /// - `Map<String, int>` é ID sabor -> quantidade naquele dia
+  Map<DateTime, Map<String, int>> totalsPerDayForRange(
+    DateTime startDate,
+    DateTime endDate,
+  ) {
+    final result = <DateTime, Map<String, int>>{};
+
+    // Itera cada dia no intervalo (inclusive start e end)
+    DateTime current = DateTime(startDate.year, startDate.month, startDate.day);
+    final end = DateTime(endDate.year, endDate.month, endDate.day);
+
+    while (!current.isAfter(end)) {
+      result[current] = totalsForSingleDate(current);
+      current = current.add(const Duration(days: 1));
+    }
+
+    return result;
+  }
+
+  /// Retorna totais agregados (soma) por sabor para um intervalo de datas.
+  /// Retorna `Map<String, int>` onde chave é ID sabor e valor é quantidade total
+  Map<String, int> totalsSummaryForRange(DateTime startDate, DateTime endDate) {
+    final dailyTotals = totalsPerDayForRange(startDate, endDate);
+    final summary = <String, int>{};
+
+    // Inicializa todos os sabores com 0
+    for (var c in _counters) {
+      summary[c.id] = 0;
+    }
+
+    // Soma os totais de cada dia
+    for (var dayTotals in dailyTotals.values) {
+      dayTotals.forEach((id, count) {
+        summary[id] = (summary[id] ?? 0) + count;
+      });
+    }
+
+    return summary;
   }
 }

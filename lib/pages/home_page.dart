@@ -1,12 +1,13 @@
 // lib/pages/home_page.dart
 import 'package:flutter/material.dart';
 import 'more_flavors_page.dart';
+import 'report_range_page.dart';
+import 'report_page.dart';
 import '../widgets/app_header.dart';
 import '../widgets/flavor_card.dart';
 import '../widgets/footer_menu.dart';
 import '../services/counter_service.dart';
 import '../models/counter.dart';
-import 'report_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -21,6 +22,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Map<String, int> _todayTotals = {};
   late PageController _pageController;
   final GlobalKey<State> _moreFlavorsKey = GlobalKey<State>();
+
+  // Data atualmente exibida (pode ser hoje ou uma data do relatório)
+  late DateTime _currentDisplayDate;
 
   // Contadores dos novos sabores (Mais Sabores)
   int _churritos = 0;
@@ -52,7 +56,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _initService() async {
     await _service.init();
-    _todayTotals = _service.totalsForSingleDate(DateTime.now());
+    _currentDisplayDate = DateTime.now();
+    _todayTotals = _service.totalsForSingleDate(_currentDisplayDate);
     if (!mounted) return;
     setState(() {
       _counters = _service.counters;
@@ -63,14 +68,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _refresh() async {
     setState(() {
       _counters = _service.counters;
-      _todayTotals = _service.totalsForSingleDate(DateTime.now());
+      // Mantém a data atual (pode ser hoje ou uma data selecionada no relatório)
+      _todayTotals = _service.totalsForSingleDate(_currentDisplayDate);
     });
   }
 
   Future<void> _increment(String id) async {
     try {
-      await _service.applyDelta(id, 1);
-      await _refresh();
+      // Incrementa para a data atualmente exibida (não apenas hoje)
+      await _service.applyDelta(id, 1, _currentDisplayDate);
+      // Não chama _refresh() aqui - apenas atualiza o display sem I/O
+      setState(() {
+        _todayTotals = _service.totalsForSingleDate(_currentDisplayDate);
+      });
     } catch (e) {
       // Erro ignorado
     }
@@ -84,6 +94,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         service: _service,
         isIncrement: isIncrement,
         onDone: _refresh,
+        displayDate: _currentDisplayDate,
         moreFlavorsData: {
           'churritos': _churritos,
           'doce-de-leite': _churrosDoceLeite,
@@ -108,10 +119,24 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
-  void _openReport() {
-    Navigator.of(context).push(
+  void _openReport() async {
+    // Primeiro, abre a tela de seleção de intervalo
+    final result = await Navigator.of(context).push<Map<String, DateTime>>(
+      MaterialPageRoute(builder: (_) => const ReportRangePage()),
+    );
+
+    if (result == null) return;
+
+    final startDate = result['startDate'] as DateTime;
+    final endDate = result['endDate'] as DateTime;
+
+    // Navega para o relatório com o intervalo selecionado
+    if (!mounted) return;
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => ReportPage(
+          startDate: startDate,
+          endDate: endDate,
           moreFlavorsData: {
             'churritos': _churritos,
             'doce-de-leite': _churrosDoceLeite,
@@ -250,6 +275,7 @@ class _AdjustSheet extends StatefulWidget {
   final CounterService service;
   final bool isIncrement;
   final Future<void> Function()? onDone;
+  final DateTime displayDate;
   final Map<String, int>? moreFlavorsData;
   final Function(Map<String, int>)? onUpdateMoreFlavors;
 
@@ -257,6 +283,7 @@ class _AdjustSheet extends StatefulWidget {
     required this.service,
     required this.isIncrement,
     required this.onDone,
+    required this.displayDate,
     this.moreFlavorsData,
     this.onUpdateMoreFlavors,
   });
@@ -324,7 +351,7 @@ class _AdjustSheetState extends State<_AdjustSheet> {
     }
 
     try {
-      await widget.service.applyDelta(_selectedId!, delta);
+      await widget.service.applyDelta(_selectedId!, delta, widget.displayDate);
       if (!mounted) return;
       Navigator.pop(context);
       if (widget.onDone != null) await widget.onDone!();
