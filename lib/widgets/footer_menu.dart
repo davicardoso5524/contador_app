@@ -8,12 +8,12 @@ class FooterMenu extends StatelessWidget {
   final VoidCallback onReport;
 
   const FooterMenu({
-    Key? key,
+    super.key,
     required this.onHome,
     required this.onMinus,
     required this.onPlus,
     required this.onReport,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

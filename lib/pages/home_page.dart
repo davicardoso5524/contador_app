@@ -63,11 +63,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (!mounted) return;
       final name = _counters.firstWhere((c) => c.id == id).name;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('+1 -> $name'), duration: const Duration(milliseconds: 600)),
+        SnackBar(
+          content: Text('+1 -> $name'),
+          duration: const Duration(milliseconds: 600),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro: $e')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro: $e')));
     }
   }
 
@@ -84,7 +89,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   void _openReport() {
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ReportPage()));
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const ReportPage()));
   }
 
   @override
@@ -95,7 +102,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     // Pega o tamanho da tela para calcular responsividade
     final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
+    // final screenHeight = MediaQuery.of(context).size.height;
 
     // Define número de colunas baseado na largura da tela
     int crossAxisCount = 2;
@@ -131,7 +138,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       const Color(0xFF8B5A2B),
       Colors.blue,
       Colors.red,
-      Colors.green
+      Colors.green,
     ];
 
     return Scaffold(
@@ -219,7 +226,9 @@ class _AdjustSheetState extends State<_AdjustSheet> {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Não é possível remover $_quantity. Valor atual: ${currentItem.value}'),
+            content: Text(
+              'Não é possível remover $_quantity. Valor atual: ${currentItem.value}',
+            ),
             duration: const Duration(milliseconds: 1500),
             backgroundColor: Colors.orange,
           ),
@@ -236,15 +245,17 @@ class _AdjustSheetState extends State<_AdjustSheet> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('${widget.isIncrement ? 'Adicionado' : 'Removido'} $_quantity'),
+          content: Text(
+            '${widget.isIncrement ? 'Adicionado' : 'Removido'} $_quantity',
+          ),
           duration: const Duration(milliseconds: 800),
         ),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro: ${e.toString()}')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro: ${e.toString()}')));
     }
   }
 
@@ -282,22 +293,27 @@ class _AdjustSheetState extends State<_AdjustSheet> {
               ),
               SizedBox(height: screenWidth < 360 ? 6 : 8),
               DropdownButtonFormField<String>(
-                value: _selectedId,
+                initialValue: _selectedId,
                 items: _items
-                    .map((c) => DropdownMenuItem(
-                  value: c.id,
-                  child: Text(
-                    c.name,
-                    style: TextStyle(
-                      fontSize: screenWidth < 360 ? 14 : 16,
-                    ),
-                  ),
-                ))
+                    .map(
+                      (c) => DropdownMenuItem(
+                        value: c.id,
+                        child: Text(
+                          c.name,
+                          style: TextStyle(
+                            fontSize: screenWidth < 360 ? 14 : 16,
+                          ),
+                        ),
+                      ),
+                    )
                     .toList(),
                 onChanged: (v) => setState(() => _selectedId = v),
                 decoration: const InputDecoration(
                   labelText: 'Sabor',
-                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
                 ),
                 isDense: screenWidth < 360,
               ),
@@ -344,9 +360,7 @@ class _AdjustSheetState extends State<_AdjustSheet> {
                     ),
                     child: Text(
                       'Confirmar',
-                      style: TextStyle(
-                        fontSize: screenWidth < 360 ? 13 : 14,
-                      ),
+                      style: TextStyle(fontSize: screenWidth < 360 ? 13 : 14),
                     ),
                   ),
                 ],
@@ -359,21 +373,19 @@ class _AdjustSheetState extends State<_AdjustSheet> {
                   itemBuilder: (context, i) {
                     final it = _items[i];
                     // Mostra o valor do dia de hoje em vez do total acumulado
-                    final todayTotals = widget.service.totalsForSingleDate(DateTime.now());
+                    final todayTotals = widget.service.totalsForSingleDate(
+                      DateTime.now(),
+                    );
                     final todayValue = todayTotals[it.id] ?? 0;
 
                     return ListTile(
                       title: Text(
                         it.name,
-                        style: TextStyle(
-                          fontSize: screenWidth < 360 ? 14 : 16,
-                        ),
+                        style: TextStyle(fontSize: screenWidth < 360 ? 14 : 16),
                       ),
                       subtitle: Text(
                         'Hoje: $todayValue',
-                        style: TextStyle(
-                          fontSize: screenWidth < 360 ? 12 : 14,
-                        ),
+                        style: TextStyle(fontSize: screenWidth < 360 ? 12 : 14),
                       ),
                       contentPadding: EdgeInsets.symmetric(
                         horizontal: screenWidth < 360 ? 8 : 16,
