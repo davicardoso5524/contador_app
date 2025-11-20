@@ -1,0 +1,107 @@
+═══════════════════════════════════════════════════════════════════════════════
+COPIAR E COLAR - INTEGRAÇÃO PASSO A PASSO
+═══════════════════════════════════════════════════════════════════════════════
+
+ARQUIVO: lib/pages/home_page.dart
+
+1️⃣  NO TOPO DO ARQUIVO, APÓS OS IMPORTS EXISTENTES, ADICIONE:
+────────────────────────────────────────────────────────────────────────────
+import 'more_flavors_page.dart';
+
+
+2️⃣  NA CLASSE _HomePageState, APÓS _todayTotals, ADICIONE:
+────────────────────────────────────────────────────────────────────────────
+late PageController _pageController;
+
+
+3️⃣  NO MÉTODO initState(), LOGO APÓS WidgetsBinding, ADICIONE:
+────────────────────────────────────────────────────────────────────────────
+_pageController = PageController();
+
+
+4️⃣  NO MÉTODO dispose(), NO INÍCIO, ADICIONE:
+────────────────────────────────────────────────────────────────────────────
+_pageController.dispose();
+
+
+5️⃣  NO build(), ENCONTRE O Expanded COM GridView.builder E SUBSTITUA:
+
+REMOVER ISTO:
+─────────────────────────────────────────────────────────────────────────────
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: horizontalPadding,
+                  vertical: verticalPadding,
+                ),
+                child: GridView.builder(
+                  itemCount: _counters.length,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    mainAxisSpacing: spacing,
+                    crossAxisSpacing: spacing,
+                    childAspectRatio: childAspectRatio,
+                  ),
+                  itemBuilder: (context, index) {
+                    final c = _counters[index];
+                    return FlavorCard(
+                      flavorName: c.name,
+                      color: colors[index % colors.length],
+                      value: _todayTotals[c.id] ?? 0,
+                      onTap: () => _increment(c.id),
+                    );
+                  },
+                ),
+              ),
+            ),
+
+ADICIONAR ISTO:
+─────────────────────────────────────────────────────────────────────────────
+            // PageView para swipe horizontal entre sabores
+            Expanded(
+              child: PageView(
+                controller: _pageController,
+                children: [
+                  // Página 1: Sabores de Coxinha
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: horizontalPadding,
+                      vertical: verticalPadding,
+                    ),
+                    child: GridView.builder(
+                      itemCount: _counters.length,
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: crossAxisCount,
+                        mainAxisSpacing: spacing,
+                        crossAxisSpacing: spacing,
+                        childAspectRatio: childAspectRatio,
+                      ),
+                      itemBuilder: (context, index) {
+                        final c = _counters[index];
+                        return FlavorCard(
+                          flavorName: c.name,
+                          color: colors[index % colors.length],
+                          value: _todayTotals[c.id] ?? 0,
+                          onTap: () => _increment(c.id),
+                        );
+                      },
+                    ),
+                  ),
+                  // Página 2: Mais Sabores
+                  const MoreFlavorsPage(),
+                ],
+              ),
+            ),
+
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ PRONTO! O app agora tem swipe horizontal entre páginas.
+
+Teste:
+  1. Abra o app
+  2. Arraste da direita para esquerda na área de quadrados
+  3. Você verá os 4 novos sabores (Churritos, Churros D.L, Chocolate, Kibes)
+  4. Toque para incrementar cada contador
+  5. Arraste para a direita para voltar aos sabores de coxinha
+
+═══════════════════════════════════════════════════════════════════════════════

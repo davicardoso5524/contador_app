@@ -1,5 +1,6 @@
 // lib/pages/home_page.dart
 import 'package:flutter/material.dart';
+import 'more_flavors_page.dart';
 import '../widgets/app_header.dart';
 import '../widgets/flavor_card.dart';
 import '../widgets/footer_menu.dart';
@@ -18,16 +19,26 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   bool _loading = true;
   List<CounterModel> _counters = [];
   Map<String, int> _todayTotals = {};
+  late PageController _pageController;
+  final GlobalKey<State> _moreFlavorsKey = GlobalKey<State>();
+
+  // Contadores dos novos sabores (Mais Sabores)
+  int _churritos = 0;
+  int _churrosDoceLeite = 0;
+  int _chocolate = 0;
+  int _kibes = 0;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _pageController = PageController();
     _initService();
   }
 
   @override
   void dispose() {
+    _pageController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -60,19 +71,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     try {
       await _service.applyDelta(id, 1);
       await _refresh();
-      if (!mounted) return;
-      final name = _counters.firstWhere((c) => c.id == id).name;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('+1 -> $name'),
-          duration: const Duration(milliseconds: 600),
-        ),
-      );
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erro: $e')));
+      // Erro ignorado
     }
   }
 
@@ -84,6 +84,26 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         service: _service,
         isIncrement: isIncrement,
         onDone: _refresh,
+        moreFlavorsData: {
+          'churritos': _churritos,
+          'doce-de-leite': _churrosDoceLeite,
+          'chocolate': _chocolate,
+          'kibes': _kibes,
+        },
+        onUpdateMoreFlavors: (Map<String, int> data) {
+          setState(() {
+            _churritos = data['churritos'] ?? 0;
+            _churrosDoceLeite = data['doce-de-leite'] ?? 0;
+            _chocolate = data['chocolate'] ?? 0;
+            _kibes = data['kibes'] ?? 0;
+          });
+          // Atualiza o MoreFlavorsPage também
+          final state = _moreFlavorsKey.currentState;
+          if (state != null) {
+            // Força rebuild do MoreFlavorsPage
+            state.setState(() {});
+          }
+        },
       ),
     );
   }
@@ -148,34 +168,63 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             const AppHeader(title: 'LOUCOS POR COXINHA'),
             const Divider(height: 1, thickness: 1),
             Expanded(
-              child: Padding(
-                padding: EdgeInsets.symmetric(
-                  horizontal: horizontalPadding,
-                  vertical: verticalPadding,
-                ),
-                child: GridView.builder(
-                  itemCount: _counters.length,
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: crossAxisCount,
-                    mainAxisSpacing: spacing,
-                    crossAxisSpacing: spacing,
-                    childAspectRatio: childAspectRatio,
+              child: PageView(
+                controller: _pageController,
+                children: [
+                  // Página 1: Sabores de Coxinha
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: horizontalPadding,
+                      vertical: verticalPadding,
+                    ),
+                    child: GridView.builder(
+                      itemCount: _counters.length,
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: crossAxisCount,
+                        mainAxisSpacing: spacing,
+                        crossAxisSpacing: spacing,
+                        childAspectRatio: childAspectRatio,
+                      ),
+                      itemBuilder: (context, index) {
+                        final c = _counters[index];
+                        return FlavorCard(
+                          flavorName: c.name,
+                          color: colors[index % colors.length],
+                          value: _todayTotals[c.id] ?? 0,
+                          onTap: () => _increment(c.id),
+                        );
+                      },
+                    ),
                   ),
-                  itemBuilder: (context, index) {
-                    final c = _counters[index];
-                    return FlavorCard(
-                      flavorName: c.name,
-                      color: colors[index % colors.length],
-                      value: _todayTotals[c.id] ?? 0,
-                      onTap: () => _increment(c.id),
-                    );
-                  },
-                ),
+                  // Página 2: Mais Sabores
+                  MoreFlavorsPage(
+                    key: _moreFlavorsKey,
+                    churritos: _churritos,
+                    doceDeLeite: _churrosDoceLeite,
+                    chocolate: _chocolate,
+                    kibes: _kibes,
+                    onCountersChanged: (data) {
+                      setState(() {
+                        _churritos = data['churritos'] ?? 0;
+                        _churrosDoceLeite = data['doce-de-leite'] ?? 0;
+                        _chocolate = data['chocolate'] ?? 0;
+                        _kibes = data['kibes'] ?? 0;
+                      });
+                    },
+                  ),
+                ],
               ),
             ),
             const Divider(height: 1, thickness: 1),
             FooterMenu(
-              onHome: () {},
+              onHome: () {
+                // Vai para a primeira página (sabores de coxinha)
+                _pageController.animateToPage(
+                  0,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut,
+                );
+              },
               onMinus: () => _openAdjustSheet(false),
               onPlus: () => _openAdjustSheet(true),
               onReport: _openReport,
@@ -192,11 +241,15 @@ class _AdjustSheet extends StatefulWidget {
   final CounterService service;
   final bool isIncrement;
   final Future<void> Function()? onDone;
+  final Map<String, int>? moreFlavorsData;
+  final Function(Map<String, int>)? onUpdateMoreFlavors;
 
   const _AdjustSheet({
     required this.service,
     required this.isIncrement,
     required this.onDone,
+    this.moreFlavorsData,
+    this.onUpdateMoreFlavors,
   });
 
   @override
@@ -208,10 +261,15 @@ class _AdjustSheetState extends State<_AdjustSheet> {
   int _quantity = 1;
   List<CounterModel> _items = [];
 
+  // Dados dos novos sabores
+  late Map<String, int> _moreFlavorsData;
+  bool _isMoreFlavor = false;
+
   @override
   void initState() {
     super.initState();
     _items = widget.service.counters;
+    _moreFlavorsData = widget.moreFlavorsData ?? {};
     if (_items.isNotEmpty) _selectedId = _items.first.id;
   }
 
@@ -219,20 +277,39 @@ class _AdjustSheetState extends State<_AdjustSheet> {
     if (_selectedId == null) return;
     final delta = widget.isIncrement ? _quantity : -_quantity;
 
+    // Se for um novo sabor (Mais Sabores)
+    if (_isMoreFlavor) {
+      final currentValue = _moreFlavorsData[_selectedId] ?? 0;
+      final newValue = currentValue + delta;
+
+      // Não permite valores negativos
+      if (newValue < 0) return;
+
+      _moreFlavorsData[_selectedId!] = newValue;
+      if (mounted && widget.onUpdateMoreFlavors != null) {
+        widget.onUpdateMoreFlavors!(_moreFlavorsData);
+
+        // Atualiza o MoreFlavorsPage imediatamente
+        // Precisamos acessar o widget de Home para conseguir a key
+        if (context.mounted) {
+          // Espera um frame para garantir a execução
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              Navigator.pop(context);
+            }
+          });
+          return;
+        }
+      }
+      if (!mounted) return;
+      Navigator.pop(context);
+      return;
+    }
+
     // Verifica se a operação vai resultar em valor negativo
     if (!widget.isIncrement) {
       final currentItem = _items.firstWhere((item) => item.id == _selectedId);
       if (currentItem.value < _quantity) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Não é possível remover $_quantity. Valor atual: ${currentItem.value}',
-            ),
-            duration: const Duration(milliseconds: 1500),
-            backgroundColor: Colors.orange,
-          ),
-        );
         return;
       }
     }
@@ -242,20 +319,8 @@ class _AdjustSheetState extends State<_AdjustSheet> {
       if (!mounted) return;
       Navigator.pop(context);
       if (widget.onDone != null) await widget.onDone!();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '${widget.isIncrement ? 'Adicionado' : 'Removido'} $_quantity',
-          ),
-          duration: const Duration(milliseconds: 800),
-        ),
-      );
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Erro: ${e.toString()}')));
+      // Erro ignorado
     }
   }
 
@@ -294,20 +359,65 @@ class _AdjustSheetState extends State<_AdjustSheet> {
               SizedBox(height: screenWidth < 360 ? 6 : 8),
               DropdownButtonFormField<String>(
                 initialValue: _selectedId,
-                items: _items
-                    .map(
-                      (c) => DropdownMenuItem(
-                        value: c.id,
-                        child: Text(
-                          c.name,
-                          style: TextStyle(
-                            fontSize: screenWidth < 360 ? 14 : 16,
-                          ),
-                        ),
+                items: [
+                  // Sabores de Coxinha
+                  ..._items.map(
+                    (c) => DropdownMenuItem(
+                      value: c.id,
+                      child: Text(
+                        c.name,
+                        style: TextStyle(fontSize: screenWidth < 360 ? 14 : 16),
                       ),
-                    )
-                    .toList(),
-                onChanged: (v) => setState(() => _selectedId = v),
+                    ),
+                  ),
+                  // Divider visual
+                  if (_moreFlavorsData.isNotEmpty)
+                    DropdownMenuItem(
+                      enabled: false,
+                      child: Divider(color: Colors.grey[400], thickness: 1),
+                    ),
+                  // Novos Sabores (Mais Sabores)
+                  if (_moreFlavorsData.isNotEmpty)
+                    DropdownMenuItem(
+                      value: 'churritos',
+                      child: Text(
+                        'Churritos',
+                        style: TextStyle(fontSize: screenWidth < 360 ? 14 : 16),
+                      ),
+                    ),
+                  if (_moreFlavorsData.isNotEmpty)
+                    DropdownMenuItem(
+                      value: 'doce-de-leite',
+                      child: Text(
+                        'Churros Doce de Leite',
+                        style: TextStyle(fontSize: screenWidth < 360 ? 14 : 16),
+                      ),
+                    ),
+                  if (_moreFlavorsData.isNotEmpty)
+                    DropdownMenuItem(
+                      value: 'chocolate',
+                      child: Text(
+                        'Chocolate',
+                        style: TextStyle(fontSize: screenWidth < 360 ? 14 : 16),
+                      ),
+                    ),
+                  if (_moreFlavorsData.isNotEmpty)
+                    DropdownMenuItem(
+                      value: 'kibes',
+                      child: Text(
+                        'Kibes',
+                        style: TextStyle(fontSize: screenWidth < 360 ? 14 : 16),
+                      ),
+                    ),
+                ],
+                onChanged: (v) {
+                  if (v != null) {
+                    setState(() {
+                      _selectedId = v;
+                      _isMoreFlavor = _moreFlavorsData.containsKey(v);
+                    });
+                  }
+                },
                 decoration: const InputDecoration(
                   labelText: 'Sabor',
                   contentPadding: EdgeInsets.symmetric(
@@ -368,32 +478,113 @@ class _AdjustSheetState extends State<_AdjustSheet> {
               SizedBox(height: screenWidth < 360 ? 6 : 8),
               Expanded(
                 child: ListView.separated(
-                  itemCount: _items.length,
+                  itemCount:
+                      _items.length +
+                      (_moreFlavorsData.isEmpty
+                          ? 0
+                          : 1 + _moreFlavorsData.length),
                   separatorBuilder: (_, _) => const Divider(height: 1),
                   itemBuilder: (context, i) {
-                    final it = _items[i];
-                    // Mostra o valor do dia de hoje em vez do total acumulado
-                    final todayTotals = widget.service.totalsForSingleDate(
-                      DateTime.now(),
-                    );
-                    final todayValue = todayTotals[it.id] ?? 0;
+                    // Sabores de Coxinha
+                    if (i < _items.length) {
+                      final it = _items[i];
+                      // Mostra o valor do dia de hoje em vez do total acumulado
+                      final todayTotals = widget.service.totalsForSingleDate(
+                        DateTime.now(),
+                      );
+                      final todayValue = todayTotals[it.id] ?? 0;
 
-                    return ListTile(
-                      title: Text(
-                        it.name,
-                        style: TextStyle(fontSize: screenWidth < 360 ? 14 : 16),
-                      ),
-                      subtitle: Text(
-                        'Hoje: $todayValue',
-                        style: TextStyle(fontSize: screenWidth < 360 ? 12 : 14),
-                      ),
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: screenWidth < 360 ? 8 : 16,
-                        vertical: screenWidth < 360 ? 4 : 8,
-                      ),
-                      dense: screenWidth < 360,
-                      onTap: () => setState(() => _selectedId = it.id),
-                    );
+                      return ListTile(
+                        title: Text(
+                          it.name,
+                          style: TextStyle(
+                            fontSize: screenWidth < 360 ? 14 : 16,
+                          ),
+                        ),
+                        subtitle: Text(
+                          'Hoje: $todayValue',
+                          style: TextStyle(
+                            fontSize: screenWidth < 360 ? 12 : 14,
+                          ),
+                        ),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: screenWidth < 360 ? 8 : 16,
+                          vertical: screenWidth < 360 ? 4 : 8,
+                        ),
+                        dense: screenWidth < 360,
+                        onTap: () => setState(() {
+                          _selectedId = it.id;
+                          _isMoreFlavor = false;
+                        }),
+                      );
+                    }
+
+                    // Seção "Mais Sabores"
+                    final moreFlavorIndex = i - _items.length;
+
+                    if (moreFlavorIndex == 0) {
+                      // Header para "Mais Sabores"
+                      return Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: screenWidth < 360 ? 8 : 16,
+                          vertical: 8,
+                        ),
+                        child: Text(
+                          'MAIS SABORES',
+                          style: TextStyle(
+                            fontSize: screenWidth < 360 ? 12 : 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                      );
+                    }
+
+                    // Sabores de Mais Sabores
+                    final flavorIndex = moreFlavorIndex - 1;
+                    final flavorNames = [
+                      'Churritos',
+                      'Churros Doce de Leite',
+                      'Chocolate',
+                      'Kibes',
+                    ];
+                    final flavorKeys = [
+                      'churritos',
+                      'doce-de-leite',
+                      'chocolate',
+                      'kibes',
+                    ];
+
+                    if (flavorIndex >= 0 && flavorIndex < flavorKeys.length) {
+                      final key = flavorKeys[flavorIndex];
+                      final value = _moreFlavorsData[key] ?? 0;
+
+                      return ListTile(
+                        title: Text(
+                          flavorNames[flavorIndex],
+                          style: TextStyle(
+                            fontSize: screenWidth < 360 ? 14 : 16,
+                          ),
+                        ),
+                        subtitle: Text(
+                          'Total: $value',
+                          style: TextStyle(
+                            fontSize: screenWidth < 360 ? 12 : 14,
+                          ),
+                        ),
+                        contentPadding: EdgeInsets.symmetric(
+                          horizontal: screenWidth < 360 ? 8 : 16,
+                          vertical: screenWidth < 360 ? 4 : 8,
+                        ),
+                        dense: screenWidth < 360,
+                        onTap: () => setState(() {
+                          _selectedId = key;
+                          _isMoreFlavor = true;
+                        }),
+                      );
+                    }
+
+                    return const SizedBox.shrink();
                   },
                 ),
               ),
