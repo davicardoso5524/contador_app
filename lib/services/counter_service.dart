@@ -1,5 +1,6 @@
 // lib/services/counter_service.dart
 import 'dart:convert';
+import 'dart:math';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../models/counter.dart';
@@ -85,22 +86,32 @@ class CounterService {
     await _saveCounters();
   }
 
+  /// Aplica um delta ao contador identificado por [id].
+  /// Se o delta for negativo e exceder o valor atual, ele será ajustado
+  /// para apenas reduzir até 0 (não permite resultado negativo).
+  /// O evento registrado terá o delta efetivamente aplicado.
   Future<void> applyDelta(String id, int delta) async {
     if (delta == 0) return;
     final idx = _counters.indexWhere((c) => c.id == id);
     if (idx == -1) throw Exception('Counter not found');
 
-    final newValue = _counters[idx].value + delta;
-    if (newValue < 0) {
-      throw Exception('Result would be negative');
-    }
+    final current = _counters[idx].value;
+    int newValue = current + delta;
+
+    // Não permitir valor negativo: limita para 0
+    if (newValue < 0) newValue = 0;
+
+    final actualApplied = newValue - current;
+
+    // Se nada foi aplicado (por exemplo tentativa de remover quando já está 0), não grava nem gera evento
+    if (actualApplied == 0) return;
 
     _counters[idx] = _counters[idx].copyWith(value: newValue);
 
     final event = CounterEvent(
       id: _uuid.v4(),
       counterId: id,
-      delta: delta,
+      delta: actualApplied,
       timestamp: DateTime.now().millisecondsSinceEpoch,
     );
     _events.add(event);

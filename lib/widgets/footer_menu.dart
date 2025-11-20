@@ -8,85 +8,78 @@ class FooterMenu extends StatelessWidget {
   final VoidCallback onReport;
 
   const FooterMenu({
-    super.key,
+    Key? key,
     required this.onHome,
     required this.onMinus,
     required this.onPlus,
     required this.onReport,
-  });
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 80,
-      color: Theme.of(context).colorScheme.surface,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
+    const double baseHeight = 56.0;
+    final bottomInset = MediaQuery.of(context).padding.bottom;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isCompact = screenWidth < 360;
 
-          // HOME – área de toque maior
-          InkWell(
-            onTap: onHome,
-            borderRadius: BorderRadius.circular(10),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 20.0,  // antes era ~6
-                vertical: 14.0,     // antes era ~6
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.home_outlined, color: Theme.of(context).colorScheme.primary),
-                  const SizedBox(width: 6),
-                  Text('HOME', style: TextStyle(color: Theme.of(context).colorScheme.primary)),
-                ],
-              ),
-            ),
-          ),
+    // tamanho mínimo dos botões circulares
+    final buttonMinSize = Size(isCompact ? 44 : 52, isCompact ? 44 : 52);
 
-          // Separador |
-          Text('|', style: TextStyle(fontSize: 22, color: Colors.brown[700])),
-
-          // Botões - e +
-          Row(
+    return SafeArea(
+      top: false,
+      child: Material(
+        elevation: 8,
+        color: Theme.of(context).colorScheme.surface,
+        child: Container(
+          height: baseHeight + bottomInset,
+          padding: EdgeInsets.only(bottom: bottomInset),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
+              // HOME
               IconButton(
-                onPressed: onMinus,
-                icon: const Icon(Icons.remove_circle_outline),
-                tooltip: 'Diminuir',
+                onPressed: onHome,
+                icon: const Icon(Icons.home_outlined),
+                splashRadius: 24,
               ),
-              const SizedBox(width: 8),
-              IconButton(
+
+              // DIMINUIR — AGORA IGUAL AO “+”
+              ElevatedButton(
+                onPressed: onMinus,
+                style: ElevatedButton.styleFrom(
+                  shape: const CircleBorder(),
+                  minimumSize: buttonMinSize,
+                  padding: const EdgeInsets.all(10),
+                  elevation: 2,
+                  backgroundColor: Theme.of(context).colorScheme.surface,
+                  foregroundColor: Theme.of(context).colorScheme.primary,
+                ),
+                child: const Icon(Icons.remove, size: 28),
+              ),
+
+              // ADICIONAR
+              ElevatedButton(
                 onPressed: onPlus,
-                icon: const Icon(Icons.add_circle_outline),
-                tooltip: 'Adicionar',
+                style: ElevatedButton.styleFrom(
+                  shape: const CircleBorder(),
+                  minimumSize: buttonMinSize,
+                  padding: const EdgeInsets.all(10),
+                  elevation: 2,
+                  backgroundColor: Theme.of(context).colorScheme.surface,
+                  foregroundColor: Theme.of(context).colorScheme.primary,
+                ),
+                child: const Icon(Icons.add, size: 28),
+              ),
+
+              // RELATÓRIO
+              IconButton(
+                onPressed: onReport,
+                icon: const Icon(Icons.bar_chart_outlined),
+                splashRadius: 24,
               ),
             ],
           ),
-
-          // Separador |
-          Text('|', style: TextStyle(fontSize: 22, color: Colors.brown[700])),
-
-          // RELATÓRIO – área de toque maior
-          InkWell(
-            onTap: onReport,
-            borderRadius: BorderRadius.circular(10),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 20.0, // antes era ~6
-                vertical: 14.0,   // antes era ~6
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.insert_chart_outlined, color: Theme.of(context).colorScheme.primary),
-                  const SizedBox(width: 6),
-                  Text('Relatório', style: TextStyle(color: Theme.of(context).colorScheme.primary)),
-                ],
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

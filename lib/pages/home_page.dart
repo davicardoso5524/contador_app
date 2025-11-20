@@ -35,7 +35,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // app voltou ao foreground — recalcula totais do dia
       _refresh();
     }
   }
@@ -51,14 +50,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Future<void> _refresh() async {
-    // reload from service
     setState(() {
       _counters = _service.counters;
       _todayTotals = _service.totalsForSingleDate(DateTime.now());
     });
   }
 
-  // incrementa +1 (tap direto em card)
   Future<void> _increment(String id) async {
     try {
       await _service.applyDelta(id, 1);
@@ -74,7 +71,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
-  // abrir sheet para ajustar (delta positivo ou negativo)
   void _openAdjustSheet(bool isIncrement) {
     showModalBottomSheet(
       context: context,
@@ -82,7 +78,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       builder: (_) => _AdjustSheet(
         service: _service,
         isIncrement: isIncrement,
-        onDone: _refresh, // agora _refresh retorna Future<void>
+        onDone: _refresh,
       ),
     );
   }
@@ -97,6 +93,38 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
+    // Pega o tamanho da tela para calcular responsividade
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
+
+    // Define número de colunas baseado na largura da tela
+    int crossAxisCount = 2;
+    double childAspectRatio = 0.95;
+    double horizontalPadding = 12.0;
+    double verticalPadding = 16.0;
+    double spacing = 18.0;
+
+    // Ajustes para telas pequenas (como A06)
+    if (screenWidth < 360) {
+      // Telas muito pequenas
+      crossAxisCount = 2;
+      childAspectRatio = 0.85;
+      horizontalPadding = 8.0;
+      verticalPadding = 12.0;
+      spacing = 12.0;
+    } else if (screenWidth < 400) {
+      // Telas pequenas
+      crossAxisCount = 2;
+      childAspectRatio = 0.90;
+      horizontalPadding = 10.0;
+      verticalPadding = 14.0;
+      spacing = 14.0;
+    } else if (screenWidth > 600) {
+      // Tablets
+      crossAxisCount = 3;
+      childAspectRatio = 1.0;
+    }
+
     final colors = [
       Colors.amber,
       Colors.deepOrange,
@@ -107,45 +135,46 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     ];
 
     return Scaffold(
-      body: Column(
-        children: [
-          const AppHeader(title: 'LOUCOS POR COXINHA'),
-          const Divider(height: 1, thickness: 1),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
-              child: GridView.builder(
-                itemCount: _counters.length,
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2, // suas 2 colunas
-                  mainAxisSpacing: 18,
-                  crossAxisSpacing: 18,
-                  childAspectRatio: 0.95,
+      body: SafeArea(
+        child: Column(
+          children: [
+            const AppHeader(title: 'LOUCOS POR COXINHA'),
+            const Divider(height: 1, thickness: 1),
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: horizontalPadding,
+                  vertical: verticalPadding,
                 ),
-                itemBuilder: (context, index) {
-                  final c = _counters[index];
-                  return FlavorCard(
-                    flavorName: c.name,
-                    color: colors[index % colors.length],
-                    // ANTES: value: c.value,
-                    // AGORA: valor mostrado é o total do DIA (hoje)
-                    value: _todayTotals[c.id] ?? 0,
-                    onTap: () => _increment(c.id),
-                  );
-                },
+                child: GridView.builder(
+                  itemCount: _counters.length,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    mainAxisSpacing: spacing,
+                    crossAxisSpacing: spacing,
+                    childAspectRatio: childAspectRatio,
+                  ),
+                  itemBuilder: (context, index) {
+                    final c = _counters[index];
+                    return FlavorCard(
+                      flavorName: c.name,
+                      color: colors[index % colors.length],
+                      value: _todayTotals[c.id] ?? 0,
+                      onTap: () => _increment(c.id),
+                    );
+                  },
+                ),
               ),
             ),
-          ),
-          const Divider(height: 1, thickness: 1),
-          FooterMenu(
-            onHome: () {
-              // nada por enquanto
-            },
-            onMinus: () => _openAdjustSheet(false),
-            onPlus: () => _openAdjustSheet(true),
-            onReport: _openReport,
-          ),
-        ],
+            const Divider(height: 1, thickness: 1),
+            FooterMenu(
+              onHome: () {},
+              onMinus: () => _openAdjustSheet(false),
+              onPlus: () => _openAdjustSheet(true),
+              onReport: _openReport,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -155,7 +184,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 class _AdjustSheet extends StatefulWidget {
   final CounterService service;
   final bool isIncrement;
-  final Future<void> Function()? onDone; // <-- changed to return Future<void>
+  final Future<void> Function()? onDone;
 
   const _AdjustSheet({
     required this.service,
@@ -182,6 +211,23 @@ class _AdjustSheetState extends State<_AdjustSheet> {
   Future<void> _apply() async {
     if (_selectedId == null) return;
     final delta = widget.isIncrement ? _quantity : -_quantity;
+
+    // Verifica se a operação vai resultar em valor negativo
+    if (!widget.isIncrement) {
+      final currentItem = _items.firstWhere((item) => item.id == _selectedId);
+      if (currentItem.value < _quantity) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Não é possível remover $_quantity. Valor atual: ${currentItem.value}'),
+            duration: const Duration(milliseconds: 1500),
+            backgroundColor: Colors.orange,
+          ),
+        );
+        return;
+      }
+    }
+
     try {
       await widget.service.applyDelta(_selectedId!, delta);
       if (!mounted) return;
@@ -189,61 +235,151 @@ class _AdjustSheetState extends State<_AdjustSheet> {
       if (widget.onDone != null) await widget.onDone!();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${widget.isIncrement ? 'Adicionado' : 'Removido'} $_quantity'), duration: const Duration(milliseconds: 800)),
+        SnackBar(
+          content: Text('${widget.isIncrement ? 'Adicionado' : 'Removido'} $_quantity'),
+          duration: const Duration(milliseconds: 800),
+        ),
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro: ${e.toString()}')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro: ${e.toString()}')),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final title = widget.isIncrement ? 'Adicionar' : 'Diminuir';
+    final screenHeight = MediaQuery.of(context).size.height;
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    // Ajusta padding para telas menores
+    final horizontalPadding = screenWidth < 360 ? 12.0 : 16.0;
+    final topPadding = screenWidth < 360 ? 8.0 : 12.0;
+
     return SafeArea(
       child: Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom + 12, left: 16, right: 16, top: 12),
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom + topPadding,
+          left: horizontalPadding,
+          right: horizontalPadding,
+          top: topPadding,
+        ),
         child: ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.75),
+          constraints: BoxConstraints(
+            maxHeight: screenHeight * 0.75,
+            minHeight: screenHeight * 0.3,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(title, style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                initialValue: _selectedId, // <- changed to initialValue (deprecated fix)
-                items: _items.map((c) => DropdownMenuItem(value: c.id, child: Text(c.name))).toList(),
-                onChanged: (v) => setState(() => _selectedId = v),
-                decoration: const InputDecoration(labelText: 'Sabor'),
+              Text(
+                title,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontSize: screenWidth < 360 ? 18 : null,
+                ),
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: screenWidth < 360 ? 6 : 8),
+              DropdownButtonFormField<String>(
+                value: _selectedId,
+                items: _items
+                    .map((c) => DropdownMenuItem(
+                  value: c.id,
+                  child: Text(
+                    c.name,
+                    style: TextStyle(
+                      fontSize: screenWidth < 360 ? 14 : 16,
+                    ),
+                  ),
+                ))
+                    .toList(),
+                onChanged: (v) => setState(() => _selectedId = v),
+                decoration: const InputDecoration(
+                  labelText: 'Sabor',
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+                isDense: screenWidth < 360,
+              ),
+              SizedBox(height: screenWidth < 360 ? 6 : 8),
               Row(
                 children: [
                   IconButton(
                     onPressed: () => setState(() {
                       if (_quantity > 1) _quantity--;
                     }),
-                    icon: const Icon(Icons.remove_circle_outline),
+                    icon: Icon(
+                      Icons.remove_circle_outline,
+                      size: screenWidth < 360 ? 28 : 32,
+                    ),
+                    padding: EdgeInsets.all(screenWidth < 360 ? 4 : 8),
+                    constraints: const BoxConstraints(),
                   ),
-                  Text('$_quantity', style: const TextStyle(fontSize: 18)),
+                  const SizedBox(width: 8),
+                  Text(
+                    '$_quantity',
+                    style: TextStyle(
+                      fontSize: screenWidth < 360 ? 16 : 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   IconButton(
                     onPressed: () => setState(() => _quantity++),
-                    icon: const Icon(Icons.add_circle_outline),
+                    icon: Icon(
+                      Icons.add_circle_outline,
+                      size: screenWidth < 360 ? 28 : 32,
+                    ),
+                    padding: EdgeInsets.all(screenWidth < 360 ? 4 : 8),
+                    constraints: const BoxConstraints(),
                   ),
                   const Spacer(),
-                  ElevatedButton(onPressed: _apply, child: const Text('Confirmar')),
+                  ElevatedButton(
+                    onPressed: _apply,
+                    style: ElevatedButton.styleFrom(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: screenWidth < 360 ? 12 : 16,
+                        vertical: screenWidth < 360 ? 8 : 12,
+                      ),
+                    ),
+                    child: Text(
+                      'Confirmar',
+                      style: TextStyle(
+                        fontSize: screenWidth < 360 ? 13 : 14,
+                      ),
+                    ),
+                  ),
                 ],
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: screenWidth < 360 ? 6 : 8),
               Expanded(
                 child: ListView.separated(
                   itemCount: _items.length,
                   separatorBuilder: (_, _) => const Divider(height: 1),
                   itemBuilder: (context, i) {
                     final it = _items[i];
+                    // Mostra o valor do dia de hoje em vez do total acumulado
+                    final todayTotals = widget.service.totalsForSingleDate(DateTime.now());
+                    final todayValue = todayTotals[it.id] ?? 0;
+
                     return ListTile(
-                      title: Text(it.name),
-                      subtitle: Text('Total atual: ${it.value}'),
+                      title: Text(
+                        it.name,
+                        style: TextStyle(
+                          fontSize: screenWidth < 360 ? 14 : 16,
+                        ),
+                      ),
+                      subtitle: Text(
+                        'Hoje: $todayValue',
+                        style: TextStyle(
+                          fontSize: screenWidth < 360 ? 12 : 14,
+                        ),
+                      ),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: screenWidth < 360 ? 8 : 16,
+                        vertical: screenWidth < 360 ? 4 : 8,
+                      ),
+                      dense: screenWidth < 360,
                       onTap: () => setState(() => _selectedId = it.id),
                     );
                   },
