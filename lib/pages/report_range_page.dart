@@ -1,6 +1,4 @@
 // lib/pages/report_range_page.dart
-// TODO: test manual - selecionar datas e clicar "Gerar Relatório" deve navegar para ReportPage com intervalo
-
 import 'package:flutter/material.dart';
 
 /// Tela de seleção de intervalo de datas para geração do relatório

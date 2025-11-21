@@ -1,10 +1,10 @@
 /// Centraliza definição de todos os sabores da aplicação
 /// Fonte única de verdade para os nomes e IDs dos sabores.
-/// 
+///
 /// Inclui:
 /// - Sabores originais: Frango, Frango c/ Bacon, Carne do Sol, Queijo, Calabresa, Pizza
 /// - Sabores adicionais: Churritos, Doce de Leite, Chocolate, Kibes
-/// 
+///
 /// Uso no relatório: allFlavorIds percorre todos os 10 sabores (0 se não vendido naquele dia)
 library;
 

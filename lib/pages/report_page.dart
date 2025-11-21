@@ -1,5 +1,4 @@
 // lib/pages/report_page.dart
-// TODO: test manual com intervalo 01/11/2025 — 10/11/2025 para verificar:
 // - Mostra uma seção por dia (10 cards)
 // - Cada seção lista todos os 10 sabores com contagens por dia
 // - Resumo final soma todas as quantidades por sabor do intervalo

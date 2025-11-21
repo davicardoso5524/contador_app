@@ -120,7 +120,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   void _openReport() async {
-    // TODO: test manual - clicar Relatório no footer → ReportRangePage (selecionar datas)
     // → ReportPage (mostrar por dia + resumo) com todos os 10 sabores listados
     // Primeiro, abre a tela de seleção de intervalo
     final result = await Navigator.of(context).push<Map<String, DateTime>>(
