@@ -146,10 +146,12 @@ class PdfReportService {
       await file.writeAsBytes(await pdf.save());
 
       // Abre share sheet
-      await Share.shareXFiles(
-        [XFile(file.path)],
-        subject:
-            'Relatório de Vendas ${_formatDate(start)} a ${_formatDate(end)}',
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path)],
+          subject:
+              'Relatório de Vendas ${_formatDate(start)} a ${_formatDate(end)}',
+        ),
       );
     } catch (e) {
       rethrow;
