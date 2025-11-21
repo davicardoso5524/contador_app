@@ -1,5 +1,4 @@
 // lib/services/pdf_report_service.dart
-// TODO: ajustar IDs de coxinhas/churros conforme flavors.dart
 // Placeholder: IDs de sabores devem ser alinhados com categorias desejadas no PDF
 
 import 'dart:io';
@@ -48,9 +47,9 @@ class PdfReportService {
               pw.SizedBox(height: 6),
 
               // Lista de sabores do dia
-              ...(entry.value.entries.toList()
-                  .where((e) => e.value > 0)
-                  .map((flavorEntry) {
+              ...(entry.value.entries.toList().where((e) => e.value > 0).map((
+                flavorEntry,
+              ) {
                 return pw.Text(
                   '• ${flavorName(flavorEntry.key)}: ${flavorEntry.value} vendidas',
                   style: const pw.TextStyle(fontSize: 10),
@@ -61,10 +60,7 @@ class PdfReportService {
               if (!entry.value.values.any((v) => v != 0))
                 pw.Text(
                   'Nenhuma venda neste dia',
-                  style: pw.TextStyle(
-                    fontSize: 11,
-                    color: PdfColors.grey600,
-                  ),
+                  style: pw.TextStyle(fontSize: 11, color: PdfColors.grey600),
                 ),
 
               pw.SizedBox(height: 12),
@@ -188,7 +184,10 @@ class PdfReportService {
       'pizza',
     ];
 
-    final totalCoxinhas = coxinhaIds.fold<int>(0, (sum, id) => sum + (summary[id] ?? 0));
+    final totalCoxinhas = coxinhaIds.fold<int>(
+      0,
+      (sum, id) => sum + (summary[id] ?? 0),
+    );
 
     final coxinhaRows = <pw.Widget>[];
     for (final id in coxinhaIds) {
@@ -212,10 +211,7 @@ class PdfReportService {
         children: [
           pw.Text(
             'COXINHAS',
-            style: pw.TextStyle(
-              fontSize: 12,
-              fontWeight: pw.FontWeight.bold,
-            ),
+            style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
           ),
           pw.SizedBox(height: 6),
           ...coxinhaRows,
@@ -223,10 +219,20 @@ class PdfReportService {
           pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
-              pw.Text('Subtotal Coxinhas:',
-                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
-              pw.Text('$totalCoxinhas',
-                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
+              pw.Text(
+                'Subtotal Coxinhas:',
+                style: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: 11,
+                ),
+              ),
+              pw.Text(
+                '$totalCoxinhas',
+                style: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: 11,
+                ),
+              ),
             ],
           ),
         ],
@@ -244,7 +250,10 @@ class PdfReportService {
     // IDs de outros sabores - AJUSTE CONFORME NECESSÁRIO EM flavors.dart
     const outrosIds = ['churritos', 'doce-de-leite', 'chocolate', 'kibes'];
 
-    final totalOutros = outrosIds.fold<int>(0, (sum, id) => sum + (summary[id] ?? 0));
+    final totalOutros = outrosIds.fold<int>(
+      0,
+      (sum, id) => sum + (summary[id] ?? 0),
+    );
 
     final labels = outrosIds.map((id) => flavorName(id)).toList().join(' | ');
 
@@ -270,10 +279,7 @@ class PdfReportService {
         children: [
           pw.Text(
             labels,
-            style: pw.TextStyle(
-              fontSize: 12,
-              fontWeight: pw.FontWeight.bold,
-            ),
+            style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
           ),
           pw.SizedBox(height: 6),
           ...outrosRows,
@@ -281,10 +287,20 @@ class PdfReportService {
           pw.Row(
             mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
             children: [
-              pw.Text('Subtotal Outros:',
-                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
-              pw.Text('$totalOutros',
-                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
+              pw.Text(
+                'Subtotal Outros:',
+                style: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: 11,
+                ),
+              ),
+              pw.Text(
+                '$totalOutros',
+                style: pw.TextStyle(
+                  fontWeight: pw.FontWeight.bold,
+                  fontSize: 11,
+                ),
+              ),
             ],
           ),
         ],
