@@ -51,7 +51,7 @@ class PdfReportService {
                 flavorEntry,
               ) {
                 return pw.Text(
-                  '• ${flavorName(flavorEntry.key)}: ${flavorEntry.value} vendidas',
+                  '${flavorName(flavorEntry.key)}: ${flavorEntry.value} vendidas',
                   style: const pw.TextStyle(fontSize: 10),
                 );
               })),
