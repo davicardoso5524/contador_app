@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'pages/home_page.dart';
+import 'pages/splash_page.dart';
 
 void main() {
   runApp(const ContadorApp());
@@ -17,7 +18,8 @@ class ContadorApp extends StatelessWidget {
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.orange),
       ),
-      home: const HomePage(),
+      home: const SplashPage(),
+      routes: {'/home': (context) => const HomePage()},
     );
   }
 }

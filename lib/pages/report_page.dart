@@ -29,6 +29,7 @@ class _ReportPageState extends State<ReportPage> {
   late Map<DateTime, Map<String, int>> _dailyTotals;
   late Map<String, int> _summaryTotals;
   bool _loading = true;
+  bool _generatingPdf = false;
 
   @override
   void initState() {
@@ -78,6 +79,10 @@ class _ReportPageState extends State<ReportPage> {
       return;
     }
 
+    setState(() {
+      _generatingPdf = true;
+    });
+
     try {
       await PdfReportService.generateAndSharePdf(
         start: widget.startDate,
@@ -91,6 +96,12 @@ class _ReportPageState extends State<ReportPage> {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Erro ao gerar PDF: $e')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _generatingPdf = false;
+        });
       }
     }
   }
@@ -156,9 +167,24 @@ class _ReportPageState extends State<ReportPage> {
 
                       // Botão Gerar PDF e Compartilhar
                       ElevatedButton.icon(
-                        onPressed: _generateAndSharePdf,
-                        icon: const Icon(Icons.picture_as_pdf),
-                        label: const Text('Gerar PDF e Compartilhar'),
+                        onPressed: _generatingPdf ? null : _generateAndSharePdf,
+                        icon: _generatingPdf
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
+                                ),
+                              )
+                            : const Icon(Icons.picture_as_pdf),
+                        label: Text(
+                          _generatingPdf
+                              ? 'Gerando PDF...'
+                              : 'Gerar PDF e Compartilhar',
+                        ),
                         style: ElevatedButton.styleFrom(
                           minimumSize: const Size(double.infinity, 52),
                           backgroundColor: Colors.blue,

@@ -200,7 +200,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       body: SafeArea(
         child: Column(
           children: [
-            const AppHeader(title: 'LOUCOS POR COXINHA'),
+            const AppHeader(title: 'CONTADOR DE COXINHA'),
             const Divider(height: 1, thickness: 1),
             Expanded(
               child: PageView(
