@@ -5,6 +5,7 @@
 // - Nenhuma referência a "Semana" ou "Final de Semana"
 import 'package:flutter/material.dart';
 import '../services/counter_service.dart';
+import '../services/pdf_report_service.dart';
 import '../shared/flavors.dart';
 
 class ReportPage extends StatefulWidget {
@@ -68,6 +69,32 @@ class _ReportPageState extends State<ReportPage> {
     }
   }
 
+  /// Gera e compartilha PDF do relatório
+  Future<void> _generateAndSharePdf() async {
+    if (_loading) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Carregando dados do relatório...')),
+      );
+      return;
+    }
+
+    try {
+      await PdfReportService.generateAndSharePdf(
+        start: widget.startDate,
+        end: widget.endDate,
+        reportByDay: _dailyTotals,
+        summaryByFlavor: _summaryTotals,
+        flavorName: _getFlavorName,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao gerar PDF: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
@@ -124,6 +151,20 @@ class _ReportPageState extends State<ReportPage> {
 
                       // Resumo Total
                       _buildSummarySection(),
+
+                      const SizedBox(height: 24),
+
+                      // Botão Gerar PDF e Compartilhar
+                      ElevatedButton.icon(
+                        onPressed: _generateAndSharePdf,
+                        icon: const Icon(Icons.picture_as_pdf),
+                        label: const Text('Gerar PDF e Compartilhar'),
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size(double.infinity, 52),
+                          backgroundColor: Colors.blue,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
 
                       const SizedBox(height: 16),
                     ],
