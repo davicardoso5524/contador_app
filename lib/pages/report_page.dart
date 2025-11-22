@@ -269,6 +269,8 @@ class _ReportPageState extends State<ReportPage> {
 
   @override
   Widget build(BuildContext context) {
+    final bottomPadding = MediaQuery.of(context).viewPadding.bottom;
+
     return PopScope(
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop) {
@@ -324,40 +326,40 @@ class _ReportPageState extends State<ReportPage> {
                       // Resumo Total
                       _buildSummarySection(),
 
-                      const SizedBox(height: 24),
-
-                      // Botão Gerar PDF e Compartilhar
-                      ElevatedButton.icon(
-                        onPressed: _generatingPdf ? null : _generateAndSharePdf,
-                        icon: _generatingPdf
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    Colors.white,
-                                  ),
-                                ),
-                              )
-                            : const Icon(Icons.picture_as_pdf),
-                        label: Text(
-                          _generatingPdf
-                              ? 'Gerando PDF...'
-                              : 'Gerar PDF e Compartilhar',
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          minimumSize: const Size(double.infinity, 52),
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
-
-                      const SizedBox(height: 16),
+                      // Espaço para o botão no bottomNavigationBar
+                      const SizedBox(height: 90),
                     ],
                   ),
                 ),
               ),
+        // Botão posicionado no bottomNavigationBar para ficar acima da barra de navegação do Android
+        bottomNavigationBar: SafeArea(
+          bottom: true,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(16, 8, 16, 16 + bottomPadding),
+            child: ElevatedButton.icon(
+              onPressed: _generatingPdf ? null : _generateAndSharePdf,
+              icon: _generatingPdf
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Icon(Icons.picture_as_pdf),
+              label: Text(
+                _generatingPdf ? 'Gerando PDF...' : 'Gerar PDF e Compartilhar',
+              ),
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size(double.infinity, 52),
+                backgroundColor: Colors.blue,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
