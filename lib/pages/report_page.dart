@@ -176,14 +176,18 @@ class _ReportPageState extends State<ReportPage> {
   }
 
   /// Constrói a seção de resumo (total por sabor)
+  /// Usa _summaryTotals como fonte única (já contém todos os sabores via totalsSummaryForRangeAsync)
   Widget _buildSummarySection() {
-    // Cria um mapa com todos os sabores (incluindo novos)
-    final allTotals = Map<String, int>.from(_summaryTotals);
-    if (widget.moreFlavorsData != null) {
-      allTotals.addAll(widget.moreFlavorsData!);
-    }
+    // IMPORTANTE: _summaryTotals já é a soma exata de _dailyTotals
+    // Não fazemos merge com widget.moreFlavorsData pois o summary já vem do serviço
+    final allTotals = _summaryTotals;
 
     final totalQty = allTotals.values.fold<int>(0, (sum, v) => sum + v);
+
+    // TODO: remover debug print após verificação
+    debugPrint(
+      'DEBUG _buildSummarySection: allTotals keys=${allTotals.keys.length}, total=$totalQty',
+    );
 
     return Card(
       color: Colors.blue.shade50,
