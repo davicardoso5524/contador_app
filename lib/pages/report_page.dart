@@ -66,8 +66,31 @@ class _ReportPageState extends State<ReportPage> {
       final counter = _service.counters.firstWhere((c) => c.id == id);
       return counter.name;
     } catch (e) {
+      // Tenta obter do Flavors (inclui novos sabores)
       return Flavors.getFlavorName(id);
     }
+  }
+
+  /// Constrói as linhas dos novos sabores para o resumo
+  List<Widget> _buildNewFlavorRows(Map<String, int> allTotals) {
+    const newFlavorIds = ['churritos', 'doce-de-leite', 'chocolate', 'kibes'];
+    return newFlavorIds.map((flavorId) {
+      final total = allTotals[flavorId] ?? 0;
+      final name = _getFlavorName(flavorId);
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(name, style: const TextStyle(fontSize: 13)),
+            Text(
+              total.toString(),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+          ],
+        ),
+      );
+    }).toList();
   }
 
   /// Gera e compartilha PDF do relatório
@@ -84,11 +107,17 @@ class _ReportPageState extends State<ReportPage> {
     });
 
     try {
+      // Cria uma cópia do summaryTotals e adiciona os novos sabores
+      final summaryWithNewFlavors = Map<String, int>.from(_summaryTotals);
+      if (widget.moreFlavorsData != null) {
+        summaryWithNewFlavors.addAll(widget.moreFlavorsData!);
+      }
+
       await PdfReportService.generateAndSharePdf(
         start: widget.startDate,
         end: widget.endDate,
         reportByDay: _dailyTotals,
-        summaryByFlavor: _summaryTotals,
+        summaryByFlavor: summaryWithNewFlavors,
         flavorName: _getFlavorName,
       );
     } catch (e) {
@@ -104,6 +133,137 @@ class _ReportPageState extends State<ReportPage> {
         });
       }
     }
+  }
+
+  /// Constrói as seções de relatório por dia
+  List<Widget> _buildDailyReportSections() {
+    final sections = <Widget>[];
+    final sortedDates = _dailyTotals.keys.toList()..sort();
+
+    for (final date in sortedDates) {
+      final totals = _dailyTotals[date]!;
+      final hasData = totals.values.any((v) => v != 0);
+
+      sections.add(
+        Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _formatDate(date),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (!hasData)
+                  const Text(
+                    'Nenhuma coxinha vendida nesse dia.',
+                    style: TextStyle(
+                      fontStyle: FontStyle.italic,
+                      color: Colors.grey,
+                    ),
+                  )
+                else
+                  ...Flavors.allFlavorIds.map((flavorId) {
+                    final count = totals[flavorId] ?? 0;
+                    final name = _getFlavorName(flavorId);
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(name),
+                          Text(
+                            count.toString(),
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return sections;
+  }
+
+  /// Constrói a seção de resumo (total por sabor)
+  Widget _buildSummarySection() {
+    // Cria um mapa com todos os sabores (incluindo novos)
+    final allTotals = Map<String, int>.from(_summaryTotals);
+    if (widget.moreFlavorsData != null) {
+      allTotals.addAll(widget.moreFlavorsData!);
+    }
+
+    final totalQty = allTotals.values.fold<int>(0, (sum, v) => sum + v);
+
+    return Card(
+      color: Colors.blue.shade50,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'RESUMO TOTAL DO PERÍODO',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            ),
+            const SizedBox(height: 12),
+            // Sabores de Coxinha
+            ...Flavors.allFlavorIds.map((flavorId) {
+              final total = allTotals[flavorId] ?? 0;
+              final name = _getFlavorName(flavorId);
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(name, style: const TextStyle(fontSize: 13)),
+                    Text(
+                      total.toString(),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+            // Novos sabores (se existirem)
+            if (widget.moreFlavorsData != null &&
+                widget.moreFlavorsData!.isNotEmpty)
+              ..._buildNewFlavorRows(allTotals),
+            const Divider(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'TOTAL GERAL',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                Text(
+                  totalQty.toString(),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -197,126 +357,6 @@ class _ReportPageState extends State<ReportPage> {
                   ),
                 ),
               ),
-      ),
-    );
-  }
-
-  /// Constrói as seções de relatório por dia
-  List<Widget> _buildDailyReportSections() {
-    final sections = <Widget>[];
-    final sortedDates = _dailyTotals.keys.toList()..sort();
-
-    for (final date in sortedDates) {
-      final totals = _dailyTotals[date]!;
-      final hasData = totals.values.any((v) => v != 0);
-
-      sections.add(
-        Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _formatDate(date),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                if (!hasData)
-                  const Text(
-                    'Nenhuma coxinha vendida nesse dia.',
-                    style: TextStyle(
-                      fontStyle: FontStyle.italic,
-                      color: Colors.grey,
-                    ),
-                  )
-                else
-                  ...Flavors.allFlavorIds.map((flavorId) {
-                    final count = totals[flavorId] ?? 0;
-                    final name = _getFlavorName(flavorId);
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(name),
-                          Text(
-                            count.toString(),
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                        ],
-                      ),
-                    );
-                  }),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    return sections;
-  }
-
-  /// Constrói a seção de resumo (total por sabor)
-  Widget _buildSummarySection() {
-    final totalQty = _summaryTotals.values.fold<int>(0, (sum, v) => sum + v);
-
-    return Card(
-      color: Colors.blue.shade50,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'RESUMO TOTAL DO PERÍODO',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-            ),
-            const SizedBox(height: 12),
-            ...Flavors.allFlavorIds.map((flavorId) {
-              final total = _summaryTotals[flavorId] ?? 0;
-              final name = _getFlavorName(flavorId);
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(name, style: const TextStyle(fontSize: 13)),
-                    Text(
-                      total.toString(),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
-            const Divider(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'TOTAL GERAL',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                ),
-                Text(
-                  totalQty.toString(),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
       ),
     );
   }
