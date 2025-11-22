@@ -9,6 +9,8 @@ import '../models/event.dart';
 class CounterService {
   static const _kCountersKey = 'counters_v1';
   static const _kEventsKey = 'events_v1';
+  // Padrão de chave para sabores adicionais por data: 'more_flavors:YYYY-MM-DD:flavorId'
+  static const _kMoreFlavorPrefix = 'more_flavors';
 
   final Uuid _uuid = const Uuid();
 
@@ -94,6 +96,65 @@ class CounterService {
     if (idx == -1) return;
     _counters[idx] = _counters[idx].copyWith(name: newName);
     await _saveCounters();
+  }
+
+  /// Obtém a contagem de um sabor adicional (more_flavor) para uma data específica
+  /// Padrão de chave: 'more_flavors:YYYY-MM-DD:flavorId'
+  Future<int> getMoreFlavorCountForDate(String flavorId, DateTime date) async {
+    final prefs = await SharedPreferences.getInstance();
+    final year = date.year.toString().padLeft(4, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    final dateStr = '$year-$month-$day';
+    final key = '$_kMoreFlavorPrefix:$dateStr:$flavorId';
+    return prefs.getInt(key) ?? 0;
+  }
+
+  /// Define a contagem de um sabor adicional (more_flavor) para uma data específica
+  /// Padrão de chave: 'more_flavors:YYYY-MM-DD:flavorId'
+  /// Limpa o cache ao modificar
+  Future<void> setMoreFlavorCountForDate(
+    String flavorId,
+    DateTime date,
+    int value,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    final year = date.year.toString().padLeft(4, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    final dateStr = '$year-$month-$day';
+    final key = '$_kMoreFlavorPrefix:$dateStr:$flavorId';
+
+    // Garante que o valor não seja negativo
+    final finalValue = value < 0 ? 0 : value;
+
+    if (finalValue == 0) {
+      // Se valor for 0, remove a chave para economizar espaço
+      await prefs.remove(key);
+    } else {
+      await prefs.setInt(key, finalValue);
+    }
+
+    // Limpa cache pois houve mudanças
+    _clearDateCache();
+  }
+
+  /// Aplica um delta a um sabor adicional para uma data específica
+  /// Similar ao applyDelta para sabores originais
+  Future<void> applyMoreFlavorDelta(
+    String flavorId,
+    int delta,
+    DateTime date,
+  ) async {
+    if (delta == 0) return;
+
+    final current = await getMoreFlavorCountForDate(flavorId, date);
+    int newValue = current + delta;
+
+    // Não permitir valor negativo: limita para 0
+    if (newValue < 0) newValue = 0;
+
+    await setMoreFlavorCountForDate(flavorId, date, newValue);
   }
 
   /// Aplica um delta ao contador identificado por [id].
@@ -256,6 +317,8 @@ class CounterService {
 
   /// Totals for a single date (start..end of that day), returns map counterId -> total
   /// Usa cache para evitar recálculos repetidos da mesma data
+  /// Nota: Este método retorna apenas os sabores originais (não inclui more_flavors)
+  /// Para incluir more_flavors, use totalsForSingleDateAsync
   Map<String, int> totalsForSingleDate(DateTime date) {
     final dateKey = '${date.year}-${date.month}-${date.day}';
 
@@ -295,6 +358,23 @@ class CounterService {
     return totals;
   }
 
+  /// Versão assíncrona que inclui sabores adicionais (more_flavors)
+  /// Retorna todos os 10 sabores (6 originais + 4 adicionais)
+  Future<Map<String, int>> totalsForSingleDateAsync(DateTime date) async {
+    // Começa com os sabores originais
+    final totals = totalsForSingleDate(date);
+
+    // Adiciona os sabores adicionais
+    const moreFlavorIds = ['churritos', 'doce-de-leite', 'chocolate', 'kibes'];
+
+    for (final flavorId in moreFlavorIds) {
+      final count = await getMoreFlavorCountForDate(flavorId, date);
+      totals[flavorId] = count;
+    }
+
+    return totals;
+  }
+
   /// Limpa o cache de datas (chamado após modificações)
   void _clearDateCache() => _dateCache.clear();
 
@@ -302,6 +382,8 @@ class CounterService {
   /// Retorna `Map<DateTime, Map<String, int>>` onde:
   /// - DateTime é o dia (sem hora)
   /// - `Map<String, int>` é ID sabor -> quantidade naquele dia
+  /// Nota: Este método retorna apenas os sabores originais
+  /// Para incluir more_flavors, use totalsPerDayForRangeAsync
   Map<DateTime, Map<String, int>> totalsPerDayForRange(
     DateTime startDate,
     DateTime endDate,
@@ -320,8 +402,30 @@ class CounterService {
     return result;
   }
 
+  /// Versão assíncrona que inclui sabores adicionais (more_flavors)
+  /// Retorna todos os 10 sabores (6 originais + 4 adicionais) para cada dia
+  Future<Map<DateTime, Map<String, int>>> totalsPerDayForRangeAsync(
+    DateTime startDate,
+    DateTime endDate,
+  ) async {
+    final result = <DateTime, Map<String, int>>{};
+
+    // Itera cada dia no intervalo (inclusive start e end)
+    DateTime current = DateTime(startDate.year, startDate.month, startDate.day);
+    final end = DateTime(endDate.year, endDate.month, endDate.day);
+
+    while (!current.isAfter(end)) {
+      result[current] = await totalsForSingleDateAsync(current);
+      current = current.add(const Duration(days: 1));
+    }
+
+    return result;
+  }
+
   /// Retorna totais agregados (soma) por sabor para um intervalo de datas.
   /// Retorna `Map<String, int>` onde chave é ID sabor e valor é quantidade total
+  /// Nota: Este método retorna apenas os sabores originais
+  /// Para incluir more_flavors, use totalsSummaryForRangeAsync
   Map<String, int> totalsSummaryForRange(DateTime startDate, DateTime endDate) {
     final dailyTotals = totalsPerDayForRange(startDate, endDate);
     final summary = <String, int>{};
@@ -329,6 +433,34 @@ class CounterService {
     // Inicializa todos os sabores com 0
     for (var c in _counters) {
       summary[c.id] = 0;
+    }
+
+    // Soma os totais de cada dia
+    for (var dayTotals in dailyTotals.values) {
+      dayTotals.forEach((id, count) {
+        summary[id] = (summary[id] ?? 0) + count;
+      });
+    }
+
+    return summary;
+  }
+
+  /// Versão assíncrona que inclui sabores adicionais (more_flavors)
+  /// Retorna totais agregados para todos os 10 sabores
+  Future<Map<String, int>> totalsSummaryForRangeAsync(
+    DateTime startDate,
+    DateTime endDate,
+  ) async {
+    final dailyTotals = await totalsPerDayForRangeAsync(startDate, endDate);
+    final summary = <String, int>{};
+
+    // Inicializa todos os sabores (originais + adicionais) com 0
+    for (var c in _counters) {
+      summary[c.id] = 0;
+    }
+    const moreFlavorIds = ['churritos', 'doce-de-leite', 'chocolate', 'kibes'];
+    for (final id in moreFlavorIds) {
+      summary[id] = 0;
     }
 
     // Soma os totais de cada dia

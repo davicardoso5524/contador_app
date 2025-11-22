@@ -6,6 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
+import '../shared/flavors.dart';
 
 class PdfReportService {
   /// Gera PDF com relatório de vendas e abre share sheet
@@ -176,15 +177,8 @@ class PdfReportService {
     Map<String, int> summary,
     String Function(String) flavorName,
   ) {
-    // IDs das coxinhas originais - AJUSTE CONFORME NECESSÁRIO EM flavors.dart
-    const coxinhaIds = [
-      'frango',
-      'frango_bacon',
-      'carne_do_sol',
-      'queijo',
-      'calabresa',
-      'pizza',
-    ];
+    // IDs das coxinhas originais - derivados de Flavors.allFlavorIds
+    final coxinhaIds = Flavors.allFlavorIds.sublist(0, 6);
 
     final totalCoxinhas = coxinhaIds.fold<int>(
       0,
@@ -249,8 +243,8 @@ class PdfReportService {
     Map<String, int> summary,
     String Function(String) flavorName,
   ) {
-    // IDs de outros sabores - AJUSTE CONFORME NECESSÁRIO EM flavors.dart
-    const outrosIds = ['churritos', 'doce-de-leite', 'chocolate', 'kibes'];
+    // IDs de outros sabores - derivados de Flavors.allFlavorIds (últimas 4)
+    final outrosIds = Flavors.allFlavorIds.sublist(6);
 
     final totalOutros = outrosIds.fold<int>(
       0,

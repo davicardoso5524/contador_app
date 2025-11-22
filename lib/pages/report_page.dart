@@ -42,15 +42,20 @@ class _ReportPageState extends State<ReportPage> {
     await _service.init();
     if (!mounted) return;
 
+    // Usa as versões async que incluem os sabores adicionais (more_flavors)
+    final dailyTotals = await _service.totalsPerDayForRangeAsync(
+      widget.startDate,
+      widget.endDate,
+    );
+    final summaryTotals = await _service.totalsSummaryForRangeAsync(
+      widget.startDate,
+      widget.endDate,
+    );
+
+    if (!mounted) return;
     setState(() {
-      _dailyTotals = _service.totalsPerDayForRange(
-        widget.startDate,
-        widget.endDate,
-      );
-      _summaryTotals = _service.totalsSummaryForRange(
-        widget.startDate,
-        widget.endDate,
-      );
+      _dailyTotals = dailyTotals;
+      _summaryTotals = summaryTotals;
       _loading = false;
     });
   }
@@ -107,17 +112,13 @@ class _ReportPageState extends State<ReportPage> {
     });
 
     try {
-      // Cria uma cópia do summaryTotals e adiciona os novos sabores
-      final summaryWithNewFlavors = Map<String, int>.from(_summaryTotals);
-      if (widget.moreFlavorsData != null) {
-        summaryWithNewFlavors.addAll(widget.moreFlavorsData!);
-      }
-
+      // Os dados já incluem os sabores adicionais via totalsPerDayForRangeAsync
+      // Não é necessário merge com moreFlavorsData
       await PdfReportService.generateAndSharePdf(
         start: widget.startDate,
         end: widget.endDate,
         reportByDay: _dailyTotals,
-        summaryByFlavor: summaryWithNewFlavors,
+        summaryByFlavor: _summaryTotals,
         flavorName: _getFlavorName,
       );
     } catch (e) {

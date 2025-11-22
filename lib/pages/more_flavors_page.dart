@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import '../shared/app_colors.dart';
+import '../services/counter_service.dart';
 
 /// Página com sabores adicionais (Churritos, Churros Doce de Leite, Chocolate, Kibes)
 /// Estado local com contadores independentes
+/// NOTA: Agora persiste alterações via CounterService para a data atual
 class MoreFlavorsPage extends StatefulWidget {
   static const _gridDelegate = SliverGridDelegateWithFixedCrossAxisCount(
     crossAxisCount: 2,
@@ -16,6 +18,8 @@ class MoreFlavorsPage extends StatefulWidget {
   final int doceDeLeite;
   final int chocolate;
   final int kibes;
+  final CounterService? counterService; // Novo: para persistir alterações
+  final DateTime? currentDate; // Novo: data para persistir
 
   const MoreFlavorsPage({
     super.key,
@@ -24,6 +28,8 @@ class MoreFlavorsPage extends StatefulWidget {
     this.doceDeLeite = 0,
     this.chocolate = 0,
     this.kibes = 0,
+    this.counterService,
+    this.currentDate,
   });
 
   @override
@@ -92,6 +98,17 @@ class _MoreFlavorPageState extends State<MoreFlavorsPage> {
     });
   }
 
+  /// Incrementa um sabor e persiste via CounterService
+  Future<void> _incrementFlavor(String flavorId) async {
+    final date = widget.currentDate ?? DateTime.now();
+    final service = widget.counterService;
+
+    if (service != null) {
+      // Persiste a alteração via CounterService
+      await service.applyMoreFlavorDelta(flavorId, 1, date);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -121,25 +138,39 @@ class _MoreFlavorPageState extends State<MoreFlavorsPage> {
                 child: GridView(
                   gridDelegate: MoreFlavorsPage._gridDelegate,
                   children: [
-                    _buildFlavorCard('Churritos', _churritos, _colors[0], () {
-                      setState(() => _churritos++);
-                      _notifyCounters();
-                    }),
+                    _buildFlavorCard(
+                      'Churritos',
+                      _churritos,
+                      _colors[0],
+                      () async {
+                        setState(() => _churritos++);
+                        await _incrementFlavor('churritos');
+                        _notifyCounters();
+                      },
+                    ),
                     _buildFlavorCard(
                       'Doce de Leite',
                       _churrosDoceLeite,
                       _colors[1],
-                      () {
+                      () async {
                         setState(() => _churrosDoceLeite++);
+                        await _incrementFlavor('doce-de-leite');
                         _notifyCounters();
                       },
                     ),
-                    _buildFlavorCard('Chocolate', _chocolate, _colors[2], () {
-                      setState(() => _chocolate++);
-                      _notifyCounters();
-                    }),
-                    _buildFlavorCard('Kibes', _kibes, _colors[3], () {
+                    _buildFlavorCard(
+                      'Chocolate',
+                      _chocolate,
+                      _colors[2],
+                      () async {
+                        setState(() => _chocolate++);
+                        await _incrementFlavor('chocolate');
+                        _notifyCounters();
+                      },
+                    ),
+                    _buildFlavorCard('Kibes', _kibes, _colors[3], () async {
                       setState(() => _kibes++);
+                      await _incrementFlavor('kibes');
                       _notifyCounters();
                     }),
                   ],
@@ -162,7 +193,7 @@ class _MoreFlavorPageState extends State<MoreFlavorsPage> {
     String flavorName,
     int count,
     Color color,
-    VoidCallback onTap,
+    Future<void> Function() onTap,
   ) {
     return Material(
       color: color,

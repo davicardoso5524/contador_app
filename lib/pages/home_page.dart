@@ -238,6 +238,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     doceDeLeite: _churrosDoceLeite,
                     chocolate: _chocolate,
                     kibes: _kibes,
+                    counterService: _service,
+                    currentDate: _currentDisplayDate,
                     onCountersChanged: (data) {
                       setState(() {
                         _churritos = data['churritos'] ?? 0;
