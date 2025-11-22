@@ -76,28 +76,6 @@ class _ReportPageState extends State<ReportPage> {
     }
   }
 
-  /// Constrói as linhas dos novos sabores para o resumo
-  List<Widget> _buildNewFlavorRows(Map<String, int> allTotals) {
-    const newFlavorIds = ['churritos', 'doce-de-leite', 'chocolate', 'kibes'];
-    return newFlavorIds.map((flavorId) {
-      final total = allTotals[flavorId] ?? 0;
-      final name = _getFlavorName(flavorId);
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(name, style: const TextStyle(fontSize: 13)),
-            Text(
-              total.toString(),
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-            ),
-          ],
-        ),
-      );
-    }).toList();
-  }
-
   /// Gera e compartilha PDF do relatório
   Future<void> _generateAndSharePdf() async {
     if (_loading) {
@@ -219,31 +197,10 @@ class _ReportPageState extends State<ReportPage> {
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
             ),
             const SizedBox(height: 12),
-            // Sabores de Coxinha
-            ...Flavors.allFlavorIds.map((flavorId) {
-              final total = allTotals[flavorId] ?? 0;
-              final name = _getFlavorName(flavorId);
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(name, style: const TextStyle(fontSize: 13)),
-                    Text(
-                      total.toString(),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
-            // Novos sabores (se existirem)
-            if (widget.moreFlavorsData != null &&
-                widget.moreFlavorsData!.isNotEmpty)
-              ..._buildNewFlavorRows(allTotals),
+
+            // build list of rows without duplications
+            ..._buildUniqueFlavorRows(allTotals),
+
             const Divider(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -265,6 +222,71 @@ class _ReportPageState extends State<ReportPage> {
         ),
       ),
     );
+  }
+
+  List<Widget> _buildUniqueFlavorRows(Map<String, int> allTotals) {
+    final List<Widget> rows = [];
+    final Set<String> seen = <String>{};
+
+    // 1) Primeiro: itera a fonte "oficial" de sabores (ordem garantida)
+    for (final flavorId in Flavors.allFlavorIds) {
+      final total = allTotals[flavorId] ?? 0;
+      final name = _getFlavorName(flavorId);
+      seen.add(flavorId);
+
+      rows.add(
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(name, style: const TextStyle(fontSize: 13)),
+              Text(
+                total.toString(),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // 2) Em seguida: adicione sabores extras vindos de moreFlavorsData,
+    //    mas apenas se ainda não foram renderizados (evita duplicação).
+    if (widget.moreFlavorsData != null && widget.moreFlavorsData!.isNotEmpty) {
+      for (final entry in widget.moreFlavorsData!.entries) {
+        final id = entry.key;
+        if (seen.contains(id)) continue; // já renderizado pela fonte oficial
+
+        final total = allTotals[id] ?? 0;
+        final name = _getFlavorName(id);
+        seen.add(id);
+
+        rows.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(name, style: const TextStyle(fontSize: 13)),
+                Text(
+                  total.toString(),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+    }
+
+    return rows;
   }
 
   @override
