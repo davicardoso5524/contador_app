@@ -1,8 +1,10 @@
-// lib/pages/report_page.dart
-// - Mostra uma seção por dia (10 cards)
-// - Cada seção lista todos os 10 sabores com contagens por dia
-// - Resumo final soma todas as quantidades por sabor do intervalo
-// - Nenhuma referência a "Semana" ou "Final de Semana"
+// lib/pages/report_page.dart (VERSÃO OTIMIZADA)
+// Otimizações para performance:
+// 1) ListView.builder para virtualização de elementos (renderiza apenas visíveis)
+// 2) Widgets separados (_DayTile, _SummaryTile) para evitar rebuilds globais
+// 3) Todos os cálculos em _loadReportData() ANTES de build()
+// 4) Dados imutáveis no estado
+// 5) Botão no bottomNavigationBar (não sofre rerender do conteúdo)
 import 'package:flutter/material.dart';
 import '../services/counter_service.dart';
 import '../services/pdf_report_service.dart';
@@ -26,8 +28,12 @@ class ReportPage extends StatefulWidget {
 
 class _ReportPageState extends State<ReportPage> {
   final CounterService _service = CounterService();
+
+  // Dados imutáveis, carregados uma única vez
+  late List<DateTime> _sortedDates;
   late Map<DateTime, Map<String, int>> _dailyTotals;
   late Map<String, int> _summaryTotals;
+
   bool _loading = true;
   bool _generatingPdf = false;
 
@@ -37,33 +43,48 @@ class _ReportPageState extends State<ReportPage> {
     _loadReportData();
   }
 
-  /// Carrega dados do intervalo de datas
+  /// Carrega dados do intervalo de datas UMA ÚNICA VEZ
+  /// Todos os cálculos feitos aqui, ANTES de build()
   Future<void> _loadReportData() async {
     await _service.init();
     if (!mounted) return;
 
-    // Usa as versões async que incluem os sabores adicionais (more_flavors)
-    final dailyTotals = await _service.totalsPerDayForRangeAsync(
-      widget.startDate,
-      widget.endDate,
-    );
-    final summaryTotals = await _service.totalsSummaryForRangeAsync(
-      widget.startDate,
-      widget.endDate,
-    );
+    try {
+      // Carregamento assíncrono
+      final dailyTotals = await _service.totalsPerDayForRangeAsync(
+        widget.startDate,
+        widget.endDate,
+      );
+      final summaryTotals = await _service.totalsSummaryForRangeAsync(
+        widget.startDate,
+        widget.endDate,
+      );
 
-    if (!mounted) return;
-    setState(() {
-      _dailyTotals = dailyTotals;
-      _summaryTotals = summaryTotals;
-      _loading = false;
-    });
+      if (!mounted) return;
+
+      // Ordena as datas uma única vez (não em build)
+      final sortedDates = dailyTotals.keys.toList()..sort();
+
+      setState(() {
+        _dailyTotals = dailyTotals;
+        _summaryTotals = summaryTotals;
+        _sortedDates = sortedDates;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao carregar relatório: $e')),
+        );
+      }
+    }
   }
 
-  /// Formata data para exibição (DD/MM/YYYY)
-  String _formatDate(DateTime date) {
-    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
-  }
+  /// Formata data para exibição (função pura)
+  static String _formatDate(DateTime date) =>
+      '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
 
   /// Retorna o nome do sabor por ID
   String _getFlavorName(String id) {
@@ -114,194 +135,13 @@ class _ReportPageState extends State<ReportPage> {
     }
   }
 
-  /// Constrói as seções de relatório por dia
-  List<Widget> _buildDailyReportSections() {
-    final sections = <Widget>[];
-    final sortedDates = _dailyTotals.keys.toList()..sort();
-
-    for (final date in sortedDates) {
-      final totals = _dailyTotals[date]!;
-      final hasData = totals.values.any((v) => v != 0);
-
-      sections.add(
-        Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _formatDate(date),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                if (!hasData)
-                  const Text(
-                    'Nenhuma coxinha vendida nesse dia.',
-                    style: TextStyle(
-                      fontStyle: FontStyle.italic,
-                      color: Colors.grey,
-                    ),
-                  )
-                else
-                  ...Flavors.allFlavorIds.map((flavorId) {
-                    final count = totals[flavorId] ?? 0;
-                    final name = _getFlavorName(flavorId);
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(name),
-                          Text(
-                            count.toString(),
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                        ],
-                      ),
-                    );
-                  }),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    return sections;
-  }
-
-  /// Constrói a seção de resumo (total por sabor)
-  /// Usa _summaryTotals como fonte única (já contém todos os sabores via totalsSummaryForRangeAsync)
-  Widget _buildSummarySection() {
-    // IMPORTANTE: _summaryTotals já é a soma exata de _dailyTotals
-    // Não fazemos merge com widget.moreFlavorsData pois o summary já vem do serviço
-    final allTotals = _summaryTotals;
-
-    final totalQty = allTotals.values.fold<int>(0, (sum, v) => sum + v);
-
-    // TODO: remover debug print após verificação
-    debugPrint(
-      'DEBUG _buildSummarySection: allTotals keys=${allTotals.keys.length}, total=$totalQty',
-    );
-
-    return Card(
-      color: Colors.blue.shade50,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'RESUMO TOTAL DO PERÍODO',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-            ),
-            const SizedBox(height: 12),
-
-            // build list of rows without duplications
-            ..._buildUniqueFlavorRows(allTotals),
-
-            const Divider(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'TOTAL GERAL',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                ),
-                Text(
-                  totalQty.toString(),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  List<Widget> _buildUniqueFlavorRows(Map<String, int> allTotals) {
-    final List<Widget> rows = [];
-    final Set<String> seen = <String>{};
-
-    // 1) Primeiro: itera a fonte "oficial" de sabores (ordem garantida)
-    for (final flavorId in Flavors.allFlavorIds) {
-      final total = allTotals[flavorId] ?? 0;
-      final name = _getFlavorName(flavorId);
-      seen.add(flavorId);
-
-      rows.add(
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(name, style: const TextStyle(fontSize: 13)),
-              Text(
-                total.toString(),
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    // 2) Em seguida: adicione sabores extras vindos de moreFlavorsData,
-    //    mas apenas se ainda não foram renderizados (evita duplicação).
-    if (widget.moreFlavorsData != null && widget.moreFlavorsData!.isNotEmpty) {
-      for (final entry in widget.moreFlavorsData!.entries) {
-        final id = entry.key;
-        if (seen.contains(id)) continue; // já renderizado pela fonte oficial
-
-        final total = allTotals[id] ?? 0;
-        final name = _getFlavorName(id);
-        seen.add(id);
-
-        rows.add(
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(name, style: const TextStyle(fontSize: 13)),
-                Text(
-                  total.toString(),
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      }
-    }
-
-    return rows;
-  }
-
   @override
   Widget build(BuildContext context) {
     final bottomPadding = MediaQuery.of(context).viewPadding.bottom;
 
     return PopScope(
       onPopInvokedWithResult: (didPop, result) {
-        if (!didPop) {
-          Navigator.pop(context);
-        }
+        if (!didPop) Navigator.pop(context);
       },
       child: Scaffold(
         appBar: AppBar(
@@ -313,52 +153,8 @@ class _ReportPageState extends State<ReportPage> {
         ),
         body: _loading
             ? const Center(child: CircularProgressIndicator())
-            : SingleChildScrollView(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Cabeçalho com intervalo
-                      Card(
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Período do Relatório',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                '${_formatDate(widget.startDate)} até ${_formatDate(widget.endDate)}',
-                                style: const TextStyle(fontSize: 14),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Relatório por dia
-                      ..._buildDailyReportSections(),
-
-                      const SizedBox(height: 24),
-
-                      // Resumo Total
-                      _buildSummarySection(),
-
-                      // Espaço para o botão no bottomNavigationBar
-                      const SizedBox(height: 90),
-                    ],
-                  ),
-                ),
-              ),
-        // Botão posicionado no bottomNavigationBar para ficar acima da barra de navegação do Android
+            : _buildReportList(),
+        // Botão fixo no bottomNavigationBar (não sofre rerender do conteúdo)
         bottomNavigationBar: SafeArea(
           bottom: true,
           child: Padding(
@@ -385,6 +181,220 @@ class _ReportPageState extends State<ReportPage> {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  /// Constrói a lista virtualizada com header, dias, resumo
+  /// ListView.builder renderiza apenas os items visíveis na tela
+  Widget _buildReportList() {
+    // itemCount = 1 (header) + N (dias) + 1 (resumo) + 1 (spacing)
+    final itemCount = 1 + _sortedDates.length + 1 + 1;
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: itemCount,
+      itemBuilder: (context, index) {
+        // Item 0: Header com período
+        if (index == 0) {
+          return _HeaderTile(
+            startDate: widget.startDate,
+            endDate: widget.endDate,
+          );
+        }
+
+        // Items 1 até N: Dias do relatório (virtualizados)
+        if (index > 0 && index <= _sortedDates.length) {
+          final dateIndex = index - 1;
+          final date = _sortedDates[dateIndex];
+          final dayTotals = _dailyTotals[date]!;
+
+          return _DayTile(
+            date: date,
+            totals: dayTotals,
+            getFlavorName: _getFlavorName,
+          );
+        }
+
+        // Item N+1: Resumo Total
+        if (index == _sortedDates.length + 1) {
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: _SummaryTile(
+              summaryTotals: _summaryTotals,
+              getFlavorName: _getFlavorName,
+            ),
+          );
+        }
+
+        // Item final: Spacing para não sobrepor o botão
+        return const SizedBox(height: 90);
+      },
+    );
+  }
+}
+
+/// Header com período do relatório (widget immutable, sem rebuild desnecessário)
+class _HeaderTile extends StatelessWidget {
+  final DateTime startDate;
+  final DateTime endDate;
+
+  const _HeaderTile({required this.startDate, required this.endDate});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 24),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Período do Relatório',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '${_ReportPageState._formatDate(startDate)} até ${_ReportPageState._formatDate(endDate)}',
+              style: const TextStyle(fontSize: 14),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Card de um dia do relatório (widget immutable)
+class _DayTile extends StatelessWidget {
+  final DateTime date;
+  final Map<String, int> totals;
+  final String Function(String) getFlavorName;
+
+  const _DayTile({
+    required this.date,
+    required this.totals,
+    required this.getFlavorName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasData = totals.values.any((v) => v != 0);
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _ReportPageState._formatDate(date),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            ),
+            const SizedBox(height: 12),
+            if (!hasData)
+              const Text(
+                'Nenhuma coxinha vendida nesse dia.',
+                style: TextStyle(
+                  fontStyle: FontStyle.italic,
+                  color: Colors.grey,
+                ),
+              )
+            else
+              // Lista de sabores para este dia
+              ...Flavors.allFlavorIds.map((flavorId) {
+                final count = totals[flavorId] ?? 0;
+                final name = getFlavorName(flavorId);
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(name),
+                      Text(
+                        count.toString(),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Card de resumo total (widget immutable)
+class _SummaryTile extends StatelessWidget {
+  final Map<String, int> summaryTotals;
+  final String Function(String) getFlavorName;
+
+  const _SummaryTile({
+    required this.summaryTotals,
+    required this.getFlavorName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final totalQty = summaryTotals.values.fold<int>(0, (sum, v) => sum + v);
+
+    return Card(
+      color: Colors.blue.shade50,
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'RESUMO TOTAL DO PERÍODO',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            ),
+            const SizedBox(height: 12),
+            // Lista de sabores (pré-calculados, sem recálculo)
+            ...Flavors.allFlavorIds.map((flavorId) {
+              final total = summaryTotals[flavorId] ?? 0;
+              final name = getFlavorName(flavorId);
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(name, style: const TextStyle(fontSize: 13)),
+                    Text(
+                      total.toString(),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+            const Divider(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'TOTAL GERAL',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                Text(
+                  totalQty.toString(),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );

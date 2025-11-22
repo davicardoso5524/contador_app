@@ -1,12 +1,10 @@
 // lib/services/counter_service.dart
 import 'dart:convert';
 import 'dart:math';
-import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../models/counter.dart';
 import '../models/event.dart';
-import '../shared/flavors.dart';
 
 class CounterService {
   static const _kCountersKey = 'counters_v1';
@@ -362,6 +360,7 @@ class CounterService {
 
   /// Versão assíncrona que inclui sabores adicionais (more_flavors)
   /// Retorna todos os 10 sabores (6 originais + 4 adicionais)
+
   Future<Map<String, int>> totalsForSingleDateAsync(DateTime date) async {
     // Começa com os sabores originais
     final totals = totalsForSingleDate(date);
@@ -449,7 +448,6 @@ class CounterService {
 
   /// Versão assíncrona que inclui sabores adicionais (more_flavors)
   /// Retorna totais agregados para todos os 10 sabores
-  /// IMPORTANTE: Derivado exclusivamente de totalsPerDayForRangeAsync para garantir consistência
   Future<Map<String, int>> totalsSummaryForRangeAsync(
     DateTime startDate,
     DateTime endDate,
@@ -457,23 +455,21 @@ class CounterService {
     final dailyTotals = await totalsPerDayForRangeAsync(startDate, endDate);
     final summary = <String, int>{};
 
-    // Inicializa todos os sabores (fonte única: Flavors.allFlavorIds) com 0
-    for (final flavorId in Flavors.allFlavorIds) {
-      summary[flavorId] = 0;
+    // Inicializa todos os sabores (originais + adicionais) com 0
+    for (var c in _counters) {
+      summary[c.id] = 0;
+    }
+    const moreFlavorIds = ['churritos', 'doce-de-leite', 'chocolate', 'kibes'];
+    for (final id in moreFlavorIds) {
+      summary[id] = 0;
     }
 
-    // Soma os totais de cada dia (já contém todos os sabores via totalsPerDayForRangeAsync)
+    // Soma os totais de cada dia
     for (var dayTotals in dailyTotals.values) {
-      for (final flavorId in Flavors.allFlavorIds) {
-        final count = dayTotals[flavorId] ?? 0;
-        summary[flavorId] = summary[flavorId]! + count;
-      }
+      dayTotals.forEach((id, count) {
+        summary[id] = (summary[id] ?? 0) + count;
+      });
     }
-
-    // TODO: remover debug print após verificação
-    debugPrint(
-      'DEBUG totalsSummaryForRangeAsync: summary keys=${summary.keys.length}, sample=${summary.entries.take(3).toList()}',
-    );
 
     return summary;
   }
