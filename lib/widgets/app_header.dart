@@ -35,19 +35,11 @@ class AppHeader extends StatelessWidget {
                 ),
                 // Botão para aplicar vendas (se callback fornecido)
                 if (onApplySales != null)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 8),
-                    child: SizedBox(
-                      width: 40,
-                      height: 40,
-                      child: IconButton(
-                        icon: const Icon(Icons.receipt),
-                        tooltip: 'Aplicar Vendas ao Estoque',
-                        onPressed: onApplySales,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                    ),
+                  IconButton(
+                    icon: const Icon(Icons.storefront),
+                    tooltip: 'Aplicar Vendas ao Estoque',
+                    onPressed: onApplySales,
+                    splashRadius: 24,
                   ),
               ],
             ),
