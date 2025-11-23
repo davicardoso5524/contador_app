@@ -5,6 +5,7 @@ import '../models/product.dart';
 import '../models/category.dart';
 import '../services/inventory_service.dart';
 import 'product_editor_page.dart';
+import 'category_editor_page.dart';
 
 class StockPage extends StatefulWidget {
   const StockPage({super.key});
@@ -86,6 +87,17 @@ class _StockPageState extends State<StockPage> {
     }
   }
 
+  Future<void> _openCategoryEditor() async {
+    final result = await Navigator.of(context).push<Category>(
+      MaterialPageRoute(builder: (_) => const CategoryEditorPage()),
+    );
+
+    // Se uma categoria foi criada, recarrega dados
+    if (result != null) {
+      _loadData();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -93,6 +105,13 @@ class _StockPageState extends State<StockPage> {
         title: const Text('Estoque'),
         centerTitle: true,
         elevation: 0,
+        actions: [
+          IconButton(
+            onPressed: _openCategoryEditor,
+            icon: const Icon(Icons.category),
+            tooltip: 'Criar Categoria',
+          ),
+        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())

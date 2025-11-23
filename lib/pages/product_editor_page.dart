@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../models/product.dart';
 import '../models/category.dart';
 import '../services/inventory_service.dart';
+import 'category_editor_page.dart';
 
 class ProductEditorPage extends StatefulWidget {
   final Product? product; // Se null, é criação; se preenchido, é edição
@@ -90,9 +91,9 @@ class _ProductEditorPageState extends State<ProductEditorPage> {
       return;
     }
 
+    // Se não houver categorias, usa categoria default
     if (_selectedCategoryId == null || _selectedCategoryId!.isEmpty) {
-      _showError('Selecione uma categoria');
-      return;
+      _selectedCategoryId = 'uncategorized';
     }
 
     final quantity = int.tryParse(_quantityController.text);
@@ -147,6 +148,22 @@ class _ProductEditorPageState extends State<ProductEditorPage> {
     );
   }
 
+  Future<void> _openCategoryEditor() async {
+    final result = await Navigator.of(context).push<Category>(
+      MaterialPageRoute(builder: (_) => const CategoryEditorPage()),
+    );
+
+    // Se uma categoria foi criada, recarrega a lista e seleciona a nova
+    if (result != null) {
+      await _loadCategories();
+      if (mounted) {
+        setState(() {
+          _selectedCategoryId = result.id;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isEditing = widget.product != null;
@@ -182,50 +199,72 @@ class _ProductEditorPageState extends State<ProductEditorPage> {
 
                     // Categoria
                     if (_categories.isEmpty)
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.orange[50],
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.orange),
-                        ),
-                        child: const Row(
-                          children: [
-                            Icon(Icons.warning, color: Colors.orange),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                'Nenhuma categoria criada. Crie uma categoria primeiro.',
-                                style: TextStyle(color: Colors.orange),
-                              ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.orange[50],
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.orange),
                             ),
-                          ],
-                        ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.warning, color: Colors.orange),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Nenhuma categoria criada. Crie uma categoria agora.',
+                                    style: TextStyle(color: Colors.orange),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          ElevatedButton.icon(
+                            onPressed: _openCategoryEditor,
+                            icon: const Icon(Icons.add),
+                            label: const Text('Criar Categoria'),
+                          ),
+                        ],
                       )
                     else
-                      DropdownButtonFormField<String>(
-                        initialValue: _selectedCategoryId,
-                        items: _categories
-                            .map(
-                              (category) => DropdownMenuItem(
-                                value: category.id,
-                                child: Text(category.name),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          DropdownButtonFormField<String>(
+                            initialValue: _selectedCategoryId,
+                            items: _categories
+                                .map(
+                                  (category) => DropdownMenuItem(
+                                    value: category.id,
+                                    child: Text(category.name),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (value) {
+                              setState(() => _selectedCategoryId = value);
+                            },
+                            decoration: InputDecoration(
+                              labelText: 'Categoria',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
                               ),
-                            )
-                            .toList(),
-                        onChanged: (value) {
-                          setState(() => _selectedCategoryId = value);
-                        },
-                        decoration: InputDecoration(
-                          labelText: 'Categoria *',
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 12,
+                              ),
+                            ),
                           ),
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 12,
+                          const SizedBox(height: 8),
+                          TextButton.icon(
+                            onPressed: _openCategoryEditor,
+                            icon: const Icon(Icons.add),
+                            label: const Text('Criar nova categoria'),
                           ),
-                        ),
+                        ],
                       ),
                     const SizedBox(height: 16),
 
