@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'more_flavors_page.dart';
 import 'report_range_page.dart';
 import 'report_page.dart';
+import 'stock_page.dart';
 import '../widgets/app_header.dart';
 import '../widgets/flavor_card.dart';
 import '../widgets/footer_menu.dart';
@@ -149,6 +150,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
+  Future<void> _openStock() async {
+    // Abre a tela de estoque
+    final result = await Navigator.of(
+      context,
+    ).push<bool>(MaterialPageRoute(builder: (_) => const StockPage()));
+
+    // Se algo foi alterado no estoque, atualiza o estado
+    if (result == true) {
+      _refresh();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -263,7 +276,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 );
               },
               onMinus: () => _openAdjustSheet(false),
-              onPlus: () => _openAdjustSheet(true),
+              onStock: _openStock,
               onReport: _openReport,
             ),
           ],
