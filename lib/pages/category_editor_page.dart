@@ -89,6 +89,59 @@ class _CategoryEditorPageState extends State<CategoryEditorPage> {
     }
   }
 
+  Future<void> _deleteCategory() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Deletar Categoria?'),
+        content: Text(
+          'Tem certeza que deseja deletar "${widget.category!.name}"? '
+          'Os produtos desta categoria não serão deletados.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+            child: const Text(
+              'Deletar',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() => _isSubmitting = true);
+
+      try {
+        await _inventoryService.deleteCategory(widget.category!.id);
+        if (!mounted) return;
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Categoria deletada com sucesso!'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+        
+        Navigator.pop(context); // Volta sem retornar nada
+      } catch (e) {
+        _showError('Erro ao deletar categoria: $e');
+      } finally {
+        if (mounted) {
+          setState(() => _isSubmitting = false);
+        }
+      }
+    }
+  }
+
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -176,6 +229,19 @@ class _CategoryEditorPageState extends State<CategoryEditorPage> {
               const SizedBox(height: 24),
 
               // Botões de ação
+              if (isEditing)
+                // Se está editando, mostra botão de deletar em cima
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: OutlinedButton.icon(
+                    onPressed: _isSubmitting ? null : _deleteCategory,
+                    icon: const Icon(Icons.delete, color: Colors.red),
+                    label: const Text(
+                      'Deletar Categoria',
+                      style: TextStyle(color: Colors.red),
+                    ),
+                  ),
+                ),
               Row(
                 children: [
                   Expanded(
