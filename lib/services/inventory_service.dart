@@ -11,8 +11,7 @@ class InventoryService {
   late SharedPreferences _prefs;
   static const String _productsKey = 'inventory:products';
   static const String _categoriesKey = 'inventory:categories';
-  
-  // TODO: Chaves de persistência para movimentos diários e deduções
+
   // inventory:movements:YYYY-MM-DD → JSON array { productId, name, qtyBefore, qtyDelta, qtyAfter, unmatched }
   // inventory:deducted:YYYY-MM-DD → boolean
   // inventory:autoApply → boolean
@@ -267,9 +266,9 @@ class InventoryService {
   }
 
   // ==================== MÉTODOS DE DEDUCÇÃO DE ESTOQUE ====================
-  
+
   /// Aplica as vendas diárias ao estoque baseado na data fornecida.
-  /// 
+  ///
   /// Fluxo:
   /// 1. Verifica se já foi aplicado para esta data (isDailyDeductionApplied)
   /// 2. Chama CounterService.totalsForSingleDateAsync(date) para obter todas as vendas
@@ -281,7 +280,7 @@ class InventoryService {
   /// 4. Salva produtos atualizados
   /// 5. Salva movimentos em inventory:movements:YYYY-MM-DD
   /// 6. Marca data como aplicada em inventory:deducted:YYYY-MM-DD
-  /// 
+  ///
   /// Retorna lista de movimentos efetivamente aplicados.
   /// Se já foi aplicado, retorna lista vazia.
   Future<List<Map<String, dynamic>>> applyDailySalesToStock(
@@ -361,11 +360,14 @@ class InventoryService {
 
         // Deduz a quantidade do estoque
         final qtyBefore = product.quantity;
-        final newQty = (product.quantity - qty).clamp(0, double.infinity).toInt();
+        final newQty = (product.quantity - qty)
+            .clamp(0, double.infinity)
+            .toInt();
         final qtyDelta = -(qty); // Negativo porque é uma dedução
 
-        _cachedProducts[_cachedProducts.indexOf(product)] =
-            product.copyWith(quantity: newQty);
+        _cachedProducts[_cachedProducts.indexOf(product)] = product.copyWith(
+          quantity: newQty,
+        );
 
         movements.add({
           'productId': product.id,
@@ -393,7 +395,7 @@ class InventoryService {
   }
 
   /// Reverte a deducção de vendas para uma data específica.
-  /// 
+  ///
   /// Fluxo:
   /// 1. Lê movimentos gravados para a data
   /// 2. Para cada movimento: restaura product.quantity = qtyBefore
@@ -402,7 +404,7 @@ class InventoryService {
   /// 5. Marca data como não aplicada (inventory:deducted:YYYY-MM-DD = false)
   Future<void> revertDailySalesForDate(DateTime date) async {
     final movements = await getDailyStockMovements(date);
-    
+
     if (movements.isEmpty) {
       return;
     }
@@ -418,12 +420,12 @@ class InventoryService {
         final qtyBefore = movement['qtyBefore'] as int;
 
         // Localiza e restaura o produto
-        final productIndex =
-            _cachedProducts.indexWhere((p) => p.id == productId);
+        final productIndex = _cachedProducts.indexWhere(
+          (p) => p.id == productId,
+        );
         if (productIndex != -1) {
           final product = _cachedProducts[productIndex];
-          _cachedProducts[productIndex] =
-              product.copyWith(quantity: qtyBefore);
+          _cachedProducts[productIndex] = product.copyWith(quantity: qtyBefore);
         }
       }
 
@@ -467,7 +469,7 @@ class InventoryService {
   ) async {
     final key = 'inventory:movements:${_formatDate(date)}';
     final json = _prefs.getString(key);
-    
+
     if (json == null || json.isEmpty) {
       return [];
     }

@@ -158,7 +158,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (reportResult != null) {
       _previousDisplayDate = _currentDisplayDate;
       _currentDisplayDate = reportResult;
-      
+
       // Se a data foi diferente, mostra o diálogo de confirmação
       if (!_isSameDay(_previousDisplayDate, _currentDisplayDate)) {
         if (!mounted) return;
@@ -219,12 +219,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // Aplica as vendas ao estoque
     try {
       final movements = await _inventoryService.applyDailySalesToStock(date);
-      
+
       // Conta quantos produtos foram efetivamente atualizados
-      final updatedCount = movements.where((m) => m['unmatched'] != true).length;
+      final updatedCount = movements
+          .where((m) => m['unmatched'] != true)
+          .length;
 
       if (!mounted) return;
-      
+
       // Mostra feedback
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
