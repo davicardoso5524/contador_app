@@ -8,6 +8,7 @@ import '../widgets/app_header.dart';
 import '../widgets/flavor_card.dart';
 import '../widgets/footer_menu.dart';
 import '../services/counter_service.dart';
+import '../services/inventory_service.dart';
 import '../models/counter.dart';
 
 class HomePage extends StatefulWidget {
@@ -18,6 +19,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final CounterService _service = CounterService();
+  final InventoryService _inventoryService = InventoryService();
   bool _loading = true;
   List<CounterModel> _counters = [];
   Map<String, int> _todayTotals = {};
@@ -26,6 +28,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   // Data atualmente exibida (pode ser hoje ou uma data do relatório)
   late DateTime _currentDisplayDate;
+  late DateTime _previousDisplayDate;
 
   // Contadores dos novos sabores (Mais Sabores)
   int _churritos = 0;
@@ -57,7 +60,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _initService() async {
     await _service.init();
+    await _inventoryService.init();
     _currentDisplayDate = DateTime.now();
+    _previousDisplayDate = DateTime.now();
     _todayTotals = _service.totalsForSingleDate(_currentDisplayDate);
     if (!mounted) return;
     setState(() {
@@ -134,7 +139,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     // Navega para o relatório com o intervalo selecionado
     if (!mounted) return;
-    await Navigator.of(context).push(
+    final reportResult = await Navigator.of(context).push<DateTime>(
       MaterialPageRoute(
         builder: (_) => ReportPage(
           startDate: startDate,
@@ -148,6 +153,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         ),
       ),
     );
+
+    // Se voltou com uma data selecionada, atualiza _currentDisplayDate
+    if (reportResult != null) {
+      _previousDisplayDate = _currentDisplayDate;
+      _currentDisplayDate = reportResult;
+      
+      // Se a data foi diferente, mostra o diálogo de confirmação
+      if (!_isSameDay(_previousDisplayDate, _currentDisplayDate)) {
+        if (!mounted) return;
+        await _showApplySalesDialog(_currentDisplayDate);
+      }
+    }
   }
 
   Future<void> _openStock() async {
@@ -160,6 +177,97 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     if (result == true) {
       _refresh();
     }
+  }
+
+  /// Mostra diálogo de confirmação para aplicar vendas ao estoque
+  Future<void> _showApplySalesDialog(DateTime date) async {
+    if (!mounted) return;
+
+    final isToday = _isToday(date);
+    final dateFormatted = _formatDate(date);
+
+    final result = await showDialog<int>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Aplicar Vendas ao Estoque'),
+        content: Text(
+          'Aplicar as vendas de $dateFormatted ao estoque? '
+          '(Isso vai subtrair as quantidades do estoque desta data).',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, 0), // Cancelar
+            child: const Text('Cancelar'),
+          ),
+          if (!isToday)
+            TextButton(
+              onPressed: () => Navigator.pop(context, 1), // Aplicar sempre
+              child: const Text('Aplicar Sempre'),
+            ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, 2), // Aplicar
+            child: const Text('Aplicar'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == null || result == 0) {
+      return; // Cancelado
+    }
+
+    // Aplica as vendas ao estoque
+    try {
+      final movements = await _inventoryService.applyDailySalesToStock(date);
+      
+      // Conta quantos produtos foram efetivamente atualizados
+      final updatedCount = movements.where((m) => m['unmatched'] != true).length;
+
+      if (!mounted) return;
+      
+      // Mostra feedback
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            updatedCount == 0
+                ? 'Nenhum produto foi atualizado nesta data.'
+                : '$updatedCount produto(s) atualizado(s) no estoque!',
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+
+      // Recarrega o inventário
+      _refresh();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao aplicar vendas: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  /// Verifica se uma data é "hoje"
+  bool _isToday(DateTime date) {
+    final now = DateTime.now();
+    return date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day;
+  }
+
+  /// Formata data como dd/MM/yyyy
+  String _formatDate(DateTime date) {
+    return '${date.day.toString().padLeft(2, '0')}/'
+        '${date.month.toString().padLeft(2, '0')}/'
+        '${date.year}';
+  }
+
+  /// Verifica se duas datas são o mesmo dia
+  bool _isSameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
   @override
