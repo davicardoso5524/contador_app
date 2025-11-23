@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 import '../models/product.dart';
 import '../models/category.dart';
+import 'counter_service.dart';
 
 class InventoryService {
   late SharedPreferences _prefs;
@@ -14,11 +15,70 @@ class InventoryService {
   List<Product> _cachedProducts = [];
   List<Category> _cachedCategories = [];
 
-  /// Inicializa o serviço e carrega dados do SharedPreferences
+  /// Inicializa o serviço, carrega dados do SharedPreferences e sincroniza com CounterService
+  /// TODO: ajustar categoria default e sincronização com CounterService conforme necessário
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
-    await _loadProducts();
     await _loadCategories();
+    await _loadProducts();
+
+    // Sincroniza produtos com CounterService (cria default category se necessário)
+    await _syncProductsWithCounterService();
+  }
+
+  /// Sincroniza produtos da aplicação com os counters do CounterService
+  /// Garante que cada counter tenha um produto correspondente no inventário
+  Future<void> _syncProductsWithCounterService() async {
+    try {
+      // Cria categoria "Sem categoria" se não existir
+      const uncategorizedId = 'uncategorized';
+      final uncategorizedExists = _cachedCategories.any(
+        (c) => c.id == uncategorizedId,
+      );
+
+      if (!uncategorizedExists) {
+        _cachedCategories.add(
+          Category(
+            id: uncategorizedId,
+            name: 'Sem categoria',
+            colorValue: null,
+          ),
+        );
+        await _persistCategories();
+      }
+
+      // Sincroniza produtos a partir dos counters
+      final counterService = CounterService();
+      await counterService.init();
+      final counters = counterService.counters;
+
+      // Para cada counter, cria um produto se não existir
+      bool hasChanges = false;
+      for (final counter in counters) {
+        final productExists = _cachedProducts.any((p) => p.id == counter.id);
+
+        if (!productExists) {
+          _cachedProducts.add(
+            Product(
+              id: counter.id,
+              name: counter.name,
+              categoryId: uncategorizedId,
+              price: 0.0,
+              quantity: 0,
+              description: 'Produto originário do contador',
+              imagePath: null,
+            ),
+          );
+          hasChanges = true;
+        }
+      }
+
+      if (hasChanges) {
+        await _persistProducts();
+      }
+    } catch (e) {
+      // Erro ignorado na sincronização
+    }
   }
 
   /// Carrega produtos do SharedPreferences para cache
