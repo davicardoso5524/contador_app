@@ -18,7 +18,6 @@ class ProductEditorPage extends StatefulWidget {
 class _ProductEditorPageState extends State<ProductEditorPage> {
   final InventoryService _inventoryService = InventoryService();
   late TextEditingController _nameController;
-  late TextEditingController _priceController;
   late TextEditingController _quantityController;
   late TextEditingController _descriptionController;
   late TextEditingController _imagePathController;
@@ -32,9 +31,6 @@ class _ProductEditorPageState extends State<ProductEditorPage> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.product?.name ?? '');
-    _priceController = TextEditingController(
-      text: widget.product?.price.toString() ?? '',
-    );
     _quantityController = TextEditingController(
       text: widget.product?.quantity.toString() ?? '0',
     );
@@ -66,7 +62,6 @@ class _ProductEditorPageState extends State<ProductEditorPage> {
   @override
   void dispose() {
     _nameController.dispose();
-    _priceController.dispose();
     _quantityController.dispose();
     _descriptionController.dispose();
     _imagePathController.dispose();
@@ -77,17 +72,6 @@ class _ProductEditorPageState extends State<ProductEditorPage> {
     // Validações
     if (_nameController.text.trim().isEmpty) {
       _showError('Nome do produto é obrigatório');
-      return;
-    }
-
-    if (_priceController.text.trim().isEmpty) {
-      _showError('Preço é obrigatório');
-      return;
-    }
-
-    final price = double.tryParse(_priceController.text);
-    if (price == null || price < 0) {
-      _showError('Preço deve ser um número válido >= 0');
       return;
     }
 
@@ -109,7 +93,7 @@ class _ProductEditorPageState extends State<ProductEditorPage> {
         id: widget.product?.id ?? '',
         name: _nameController.text.trim(),
         categoryId: _selectedCategoryId!,
-        price: price,
+        price: 0.0,
         quantity: quantity,
         description: _descriptionController.text.trim().isEmpty
             ? null
@@ -266,27 +250,6 @@ class _ProductEditorPageState extends State<ProductEditorPage> {
                           ),
                         ],
                       ),
-                    const SizedBox(height: 16),
-
-                    // Preço
-                    TextField(
-                      controller: _priceController,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      decoration: InputDecoration(
-                        labelText: 'Preço (R\$) *',
-                        hintText: '0.00',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 12,
-                        ),
-                      ),
-                      textInputAction: TextInputAction.next,
-                    ),
                     const SizedBox(height: 16),
 
                     // Quantidade

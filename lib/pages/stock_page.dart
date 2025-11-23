@@ -305,16 +305,6 @@ class _StockPageState extends State<StockPage> {
                         ),
 
                       const Spacer(),
-
-                      // Preço
-                      Text(
-                        'R\$ ${product.price.toStringAsFixed(2)}',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green,
-                        ),
-                      ),
                     ],
                   ),
                 ),
