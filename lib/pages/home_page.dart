@@ -54,16 +54,54 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _refresh();
+      // Quando o app volta ao primeiro plano, verifica se mudou de dia
+      _checkAndApplySalesIfNewDay();
     }
+  }
+
+  /// Verifica se mudou de dia e aplica vendas automaticamente
+  Future<void> _checkAndApplySalesIfNewDay() async {
+    final now = DateTime.now();
+    
+    // Se é um dia diferente de _currentDisplayDate, mostra o diálogo
+    if (!_isSameDay(_currentDisplayDate, now)) {
+      _previousDisplayDate = _currentDisplayDate;
+      _currentDisplayDate = now;
+      
+      if (mounted) {
+        await _showApplySalesDialog(_currentDisplayDate);
+      }
+    }
+    
+    // Sempre recarrega dados ao retomar
+    _refresh();
+  }
+
+  /// Mostra diálogo para aplicar vendas manualmente (botão no header)
+  Future<void> _applyTodaySales() async {
+    await _showApplySalesDialog(DateTime.now());
   }
 
   Future<void> _initService() async {
     await _service.init();
     await _inventoryService.init();
     _currentDisplayDate = DateTime.now();
-    _previousDisplayDate = DateTime.now();
+    _previousDisplayDate = DateTime.now().subtract(const Duration(days: 1));
     _todayTotals = _service.totalsForSingleDate(_currentDisplayDate);
+    
+    // Verifica se há vendas de ontem que não foram aplicadas ao estoque
+    final yesterday = DateTime.now().subtract(const Duration(days: 1));
+    final yesterdayHasSales = _service.totalsForSingleDate(yesterday)
+        .values.any((qty) => qty > 0);
+    final yesterdayAlreadyApplied = 
+        await _inventoryService.isDailyDeductionApplied(yesterday);
+    
+    if (yesterdayHasSales && !yesterdayAlreadyApplied) {
+      // Marca a data anterior para aplicar quando o dialog aparecer
+      _previousDisplayDate = _currentDisplayDate;
+      _currentDisplayDate = yesterday;
+    }
+    
     if (!mounted) return;
     setState(() {
       _counters = _service.counters;
@@ -323,7 +361,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       body: SafeArea(
         child: Column(
           children: [
-            const AppHeader(title: 'CONTADOR DE COXINHA'),
+            AppHeader(
+              title: 'CONTADOR DE COXINHA',
+              onApplySales: _applyTodaySales,
+            ),
             const Divider(height: 1, thickness: 1),
             Expanded(
               child: PageView(
