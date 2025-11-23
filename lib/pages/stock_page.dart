@@ -175,11 +175,11 @@ class _StockPageState extends State<StockPage> {
                         padding: const EdgeInsets.all(12),
                         gridDelegate:
                             const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                          childAspectRatio: 0.75,
-                        ),
+                              crossAxisCount: 2,
+                              mainAxisSpacing: 12,
+                              crossAxisSpacing: 12,
+                              childAspectRatio: 0.75,
+                            ),
                         itemCount: _filteredProducts.length,
                         itemBuilder: (context, index) {
                           final product = _filteredProducts[index];

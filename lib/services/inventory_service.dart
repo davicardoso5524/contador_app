@@ -14,7 +14,7 @@ class InventoryService {
 
   List<Product> _cachedProducts = [];
   List<Category> _cachedCategories = [];
-  
+
   // Singleton pattern para evitar múltiplas instâncias
   static final InventoryService _instance = InventoryService._internal();
   bool _initialized = false;
@@ -29,20 +29,19 @@ class InventoryService {
   /// Utiliza flag _initialized para evitar múltiplas inicializações
   Future<void> init() async {
     if (_initialized) return;
-    
+
     _prefs = await SharedPreferences.getInstance();
     await _loadCategories();
     await _loadProducts();
-    
+
     // Sincroniza produtos com CounterService (cria default category se necessário)
     await _syncProductsWithCounterService();
-    
+
     _initialized = true;
   }
 
   /// Sincroniza produtos da aplicação com os counters do CounterService
   /// Garante que cada counter tenha um produto correspondente no inventário
-  /// TODO: ajustar categoria default e sincronização com CounterService conforme necessário
   Future<void> _syncProductsWithCounterService() async {
     try {
       // Cria categoria "Sem categoria" se não existir
