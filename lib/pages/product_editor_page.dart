@@ -1,6 +1,9 @@
 // lib/pages/product_editor_page.dart
 // Página para criar/editar produtos com formulário e validações
 import 'package:flutter/material.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import '../models/product.dart';
 import '../models/category.dart';
 import '../services/inventory_service.dart';
@@ -20,10 +23,11 @@ class _ProductEditorPageState extends State<ProductEditorPage> {
   late TextEditingController _nameController;
   late TextEditingController _quantityController;
   late TextEditingController _descriptionController;
-  late TextEditingController _imagePathController;
+  final ImagePicker _imagePicker = ImagePicker();
 
   List<Category> _categories = [];
   String? _selectedCategoryId;
+  String? _selectedImagePath;
   bool _loading = true;
   bool _isSubmitting = false;
 
@@ -37,9 +41,7 @@ class _ProductEditorPageState extends State<ProductEditorPage> {
     _descriptionController = TextEditingController(
       text: widget.product?.description ?? '',
     );
-    _imagePathController = TextEditingController(
-      text: widget.product?.imagePath ?? '',
-    );
+    _selectedImagePath = widget.product?.imagePath;
     _selectedCategoryId = widget.product?.categoryId;
     _loadCategories();
   }
@@ -64,7 +66,6 @@ class _ProductEditorPageState extends State<ProductEditorPage> {
     _nameController.dispose();
     _quantityController.dispose();
     _descriptionController.dispose();
-    _imagePathController.dispose();
     super.dispose();
   }
 
@@ -98,9 +99,7 @@ class _ProductEditorPageState extends State<ProductEditorPage> {
         description: _descriptionController.text.trim().isEmpty
             ? null
             : _descriptionController.text.trim(),
-        imagePath: _imagePathController.text.trim().isEmpty
-            ? null
-            : _imagePathController.text.trim(),
+        imagePath: _selectedImagePath,
       );
 
       if (widget.product == null) {
@@ -146,6 +145,46 @@ class _ProductEditorPageState extends State<ProductEditorPage> {
         });
       }
     }
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final XFile? pickedFile = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 85,
+      );
+
+      if (pickedFile != null) {
+        // Copia a imagem para o diretório de aplicação
+        final appDir = await getApplicationDocumentsDirectory();
+        final imagesDir = Directory('${appDir.path}/product_images');
+        if (!await imagesDir.exists()) {
+          await imagesDir.create(recursive: true);
+        }
+
+        final fileName =
+            '${DateTime.now().millisecondsSinceEpoch}_${pickedFile.name}';
+        final savedImage = await File(
+          pickedFile.path,
+        ).copy('${imagesDir.path}/$fileName');
+
+        if (mounted) {
+          setState(() {
+            _selectedImagePath = savedImage.path;
+          });
+        }
+      }
+    } catch (e) {
+      _showError('Erro ao selecionar imagem: $e');
+    }
+  }
+
+  void _clearImage() {
+    setState(() {
+      _selectedImagePath = null;
+    });
   }
 
   @override
@@ -290,21 +329,64 @@ class _ProductEditorPageState extends State<ProductEditorPage> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Caminho da Imagem (opcional)
-                    TextField(
-                      controller: _imagePathController,
-                      decoration: InputDecoration(
-                        labelText: 'Caminho da Imagem (opcional)',
-                        hintText: 'Ex: assets/images/coxinha.png',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
+                    // Seleção de Imagem (opcional)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Imagem do Produto (opcional)',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(fontWeight: FontWeight.w500),
                         ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 12,
-                        ),
-                      ),
-                      textInputAction: TextInputAction.done,
+                        const SizedBox(height: 8),
+                        if (_selectedImagePath != null)
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Container(
+                                height: 200,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.grey),
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.file(
+                                    File(_selectedImagePath!),
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: ElevatedButton.icon(
+                                      onPressed: _pickImage,
+                                      icon: const Icon(Icons.image),
+                                      label: const Text('Trocar Imagem'),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  ElevatedButton.icon(
+                                    onPressed: _clearImage,
+                                    icon: const Icon(Icons.close),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.red,
+                                    ),
+                                    label: const Text('Remover'),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          )
+                        else
+                          ElevatedButton.icon(
+                            onPressed: _pickImage,
+                            icon: const Icon(Icons.add_photo_alternate),
+                            label: const Text('Selecionar Imagem'),
+                          ),
+                      ],
                     ),
                     const SizedBox(height: 24),
 
