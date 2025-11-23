@@ -28,6 +28,7 @@ class InventoryService {
 
   /// Sincroniza produtos da aplicação com os counters do CounterService
   /// Garante que cada counter tenha um produto correspondente no inventário
+  /// TODO: ajustar categoria default e sincronização com CounterService conforme necessário
   Future<void> _syncProductsWithCounterService() async {
     try {
       // Cria categoria "Sem categoria" se não existir
@@ -66,6 +67,34 @@ class InventoryService {
               price: 0.0,
               quantity: 0,
               description: 'Produto originário do contador',
+              imagePath: null,
+            ),
+          );
+          hasChanges = true;
+        }
+      }
+
+      // Adiciona os "Mais Sabores" como produtos padrão também
+      final moreFlavorIds = {
+        'churritos': 'Churritos',
+        'doce-de-leite': 'Doce de Leite',
+        'chocolate': 'Chocolate',
+        'kibes': 'Kibes',
+      };
+
+      for (final entry in moreFlavorIds.entries) {
+        final productExists =
+            _cachedProducts.any((p) => p.id == entry.key);
+
+        if (!productExists) {
+          _cachedProducts.add(
+            Product(
+              id: entry.key,
+              name: entry.value,
+              categoryId: uncategorizedId,
+              price: 0.0,
+              quantity: 0,
+              description: 'Sabor adicional',
               imagePath: null,
             ),
           );
