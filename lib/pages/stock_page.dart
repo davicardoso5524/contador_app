@@ -26,7 +26,7 @@ class _StockPageState extends State<StockPage> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _loadData();
   }
 
@@ -95,13 +95,42 @@ class _StockPageState extends State<StockPage> with TickerProviderStateMixin {
     }
   }
 
-  Future<void> _openCategoryEditor() async {
+  Future<void> _openCategoryEditor({Category? category}) async {
     final result = await Navigator.of(context).push<Category>(
-      MaterialPageRoute(builder: (_) => const CategoryEditorPage()),
+      MaterialPageRoute(builder: (_) => CategoryEditorPage(category: category)),
     );
 
-    // Se uma categoria foi criada, recarrega dados
+    // Se uma categoria foi criada ou editada, recarrega dados
     if (result != null) {
+      _loadData();
+    }
+  }
+
+  Future<void> _deleteCategory(Category category) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Deletar Categoria?'),
+        content: Text(
+          'Tem certeza que deseja deletar "${category.name}"? '
+          'Os produtos não serão deletados.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Deletar', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _inventoryService.deleteCategory(category.id);
       _loadData();
     }
   }
@@ -117,16 +146,10 @@ class _StockPageState extends State<StockPage> with TickerProviderStateMixin {
           controller: _tabController,
           tabs: const [
             Tab(text: 'Produtos', icon: Icon(Icons.shopping_bag)),
+            Tab(text: 'Categorias', icon: Icon(Icons.category)),
             Tab(text: 'Movimentos', icon: Icon(Icons.history)),
           ],
         ),
-        actions: [
-          IconButton(
-            onPressed: _openCategoryEditor,
-            icon: const Icon(Icons.category),
-            tooltip: 'Criar Categoria',
-          ),
-        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -135,7 +158,9 @@ class _StockPageState extends State<StockPage> with TickerProviderStateMixin {
               children: [
                 // Aba 1: Produtos
                 _buildProductsTab(),
-                // Aba 2: Movimentos
+                // Aba 2: Categorias
+                _buildCategoriesTab(),
+                // Aba 3: Movimentos
                 _buildMovementsTab(),
               ],
             ),
@@ -223,6 +248,45 @@ class _StockPageState extends State<StockPage> with TickerProviderStateMixin {
             ),
         ],
       ),
+    );
+  }
+
+  /// Constrói a aba de Categorias (gerenciamento de categorias)
+  Widget _buildCategoriesTab() {
+    return SafeArea(
+      child: _categories.isEmpty
+          ? const Center(
+              child: Text(
+                'Nenhuma categoria criada',
+                style: TextStyle(color: Colors.grey, fontSize: 16),
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(12),
+              itemCount: _categories.length,
+              itemBuilder: (context, index) {
+                final category = _categories[index];
+                return Card(
+                  margin: const EdgeInsets.symmetric(vertical: 8),
+                  child: ListTile(
+                    leading: Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: category.getColor(),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    title: Text(category.name),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: () => _deleteCategory(category),
+                    ),
+                    onTap: () => _openCategoryEditor(category: category),
+                  ),
+                );
+              },
+            ),
     );
   }
 
