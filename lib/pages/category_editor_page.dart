@@ -207,6 +207,4 @@ class _CategoryEditorPageState extends State<CategoryEditorPage> {
       ),
     );
   }
-
-  // TODO: test manual - criar categoria com nome e cor, verificar se aparece no dropdown do ProductEditor
 }
