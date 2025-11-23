@@ -86,29 +86,40 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     await _service.init();
     await _inventoryService.init();
     _currentDisplayDate = DateTime.now();
-    _previousDisplayDate = DateTime.now().subtract(const Duration(days: 1));
+    _previousDisplayDate = DateTime.now();
     _todayTotals = _service.totalsForSingleDate(_currentDisplayDate);
-
-    // Verifica se há vendas de ontem que não foram aplicadas ao estoque
-    final yesterday = DateTime.now().subtract(const Duration(days: 1));
-    final yesterdayHasSales = _service
-        .totalsForSingleDate(yesterday)
-        .values
-        .any((qty) => qty > 0);
-    final yesterdayAlreadyApplied = await _inventoryService
-        .isDailyDeductionApplied(yesterday);
-
-    if (yesterdayHasSales && !yesterdayAlreadyApplied) {
-      // Marca a data anterior para aplicar quando o dialog aparecer
-      _previousDisplayDate = _currentDisplayDate;
-      _currentDisplayDate = yesterday;
-    }
 
     if (!mounted) return;
     setState(() {
       _counters = _service.counters;
       _loading = false;
     });
+
+    // Após carregar a UI, verifica se há vendas pendentes de aplicar
+    // Isso é feito assincronamente para não bloquear a inicialização
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkPendingSalesAsync();
+    });
+  }
+
+  /// Verifica assincronamente se há vendas pendentes de aplicar
+  Future<void> _checkPendingSalesAsync() async {
+    try {
+      final yesterday = DateTime.now().subtract(const Duration(days: 1));
+      final yesterdayHasSales = _service
+          .totalsForSingleDate(yesterday)
+          .values
+          .any((qty) => qty > 0);
+      final yesterdayAlreadyApplied = await _inventoryService
+          .isDailyDeductionApplied(yesterday);
+
+      if (yesterdayHasSales && !yesterdayAlreadyApplied && mounted) {
+        // Mostra diálogo para aplicar vendas de ontem
+        await _showApplySalesDialog(yesterday);
+      }
+    } catch (e) {
+      // Ignora erros nesta verificação
+    }
   }
 
   Future<void> _refresh() async {
