@@ -166,9 +166,9 @@ class _ProductEditorPageState extends State<ProductEditorPage> {
 
         final fileName =
             '${DateTime.now().millisecondsSinceEpoch}_${pickedFile.name}';
-        final savedImage = await File(pickedFile.path).copy(
-          '${imagesDir.path}/$fileName',
-        );
+        final savedImage = await File(
+          pickedFile.path,
+        ).copy('${imagesDir.path}/$fileName');
 
         if (mounted) {
           setState(() {
@@ -335,12 +335,8 @@ class _ProductEditorPageState extends State<ProductEditorPage> {
                       children: [
                         Text(
                           'Imagem do Produto (opcional)',
-                          style: Theme.of(context)
-                              .textTheme
-                              .bodyMedium
-                              ?.copyWith(
-                                fontWeight: FontWeight.w500,
-                              ),
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(fontWeight: FontWeight.w500),
                         ),
                         const SizedBox(height: 8),
                         if (_selectedImagePath != null)
