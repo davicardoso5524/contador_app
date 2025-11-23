@@ -105,13 +105,8 @@ class _CategoryEditorPageState extends State<CategoryEditorPage> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-            ),
-            child: const Text(
-              'Deletar',
-              style: TextStyle(color: Colors.white),
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Deletar', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -123,14 +118,14 @@ class _CategoryEditorPageState extends State<CategoryEditorPage> {
       try {
         await _inventoryService.deleteCategory(widget.category!.id);
         if (!mounted) return;
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Categoria deletada com sucesso!'),
             duration: Duration(seconds: 2),
           ),
         );
-        
+
         Navigator.pop(context); // Volta sem retornar nada
       } catch (e) {
         _showError('Erro ao deletar categoria: $e');
