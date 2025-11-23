@@ -166,6 +166,4 @@ class InventoryService {
     await _prefs.remove(_productsKey);
     await _prefs.remove(_categoriesKey);
   }
-
-  // TODO: test manual - testar persistência após reiniciar app
 }

@@ -340,6 +340,4 @@ class _ProductEditorPageState extends State<ProductEditorPage> {
             ),
     );
   }
-
-  // TODO: test manual - validar nome vazio, preço negativo, quantidade negativa, criar novo, editar existente
 }

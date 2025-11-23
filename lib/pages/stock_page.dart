@@ -343,6 +343,4 @@ class _StockPageState extends State<StockPage> {
       ),
     );
   }
-
-  // TODO: test manual - criar produto, filtrar por categoria, editar, deletar (long press)
 }
