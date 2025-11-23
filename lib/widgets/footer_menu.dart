@@ -58,17 +58,10 @@ class FooterMenu extends StatelessWidget {
               ),
 
               // ESTOQUE (substituiu "ADICIONAR")
-              ElevatedButton(
+              IconButton(
                 onPressed: onStock,
-                style: ElevatedButton.styleFrom(
-                  shape: const CircleBorder(),
-                  minimumSize: buttonMinSize,
-                  padding: const EdgeInsets.all(10),
-                  elevation: 2,
-                  backgroundColor: Theme.of(context).colorScheme.surface,
-                  foregroundColor: Theme.of(context).colorScheme.primary,
-                ),
-                child: const Icon(Icons.storefront, size: 28),
+                icon: const Icon(Icons.storefront),
+                splashRadius: 24,
               ),
 
               // RELATÓRIO
