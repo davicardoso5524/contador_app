@@ -4,14 +4,14 @@ import 'package:flutter/material.dart';
 class FooterMenu extends StatelessWidget {
   final VoidCallback onHome;
   final VoidCallback onMinus;
-  final VoidCallback onPlus;
+  final VoidCallback onStock;
   final VoidCallback onReport;
 
   const FooterMenu({
     super.key,
     required this.onHome,
     required this.onMinus,
-    required this.onPlus,
+    required this.onStock,
     required this.onReport,
   });
 
@@ -57,18 +57,11 @@ class FooterMenu extends StatelessWidget {
                 child: const Icon(Icons.remove, size: 28),
               ),
 
-              // ADICIONAR
-              ElevatedButton(
-                onPressed: onPlus,
-                style: ElevatedButton.styleFrom(
-                  shape: const CircleBorder(),
-                  minimumSize: buttonMinSize,
-                  padding: const EdgeInsets.all(10),
-                  elevation: 2,
-                  backgroundColor: Theme.of(context).colorScheme.surface,
-                  foregroundColor: Theme.of(context).colorScheme.primary,
-                ),
-                child: const Icon(Icons.add, size: 28),
+              // ESTOQUE (substituiu "ADICIONAR")
+              IconButton(
+                onPressed: onStock,
+                icon: const Icon(Icons.storefront),
+                splashRadius: 24,
               ),
 
               // RELATÓRIO

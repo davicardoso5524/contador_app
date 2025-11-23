@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'more_flavors_page.dart';
 import 'report_range_page.dart';
 import 'report_page.dart';
+import 'stock_page.dart';
 import '../widgets/app_header.dart';
 import '../widgets/flavor_card.dart';
 import '../widgets/footer_menu.dart';
 import '../services/counter_service.dart';
+import '../services/inventory_service.dart';
 import '../models/counter.dart';
 
 class HomePage extends StatefulWidget {
@@ -17,6 +19,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final CounterService _service = CounterService();
+  final InventoryService _inventoryService = InventoryService();
   bool _loading = true;
   List<CounterModel> _counters = [];
   Map<String, int> _todayTotals = {};
@@ -25,6 +28,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   // Data atualmente exibida (pode ser hoje ou uma data do relatório)
   late DateTime _currentDisplayDate;
+  late DateTime _previousDisplayDate;
 
   // Contadores dos novos sabores (Mais Sabores)
   int _churritos = 0;
@@ -50,19 +54,72 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _refresh();
+      // Quando o app volta ao primeiro plano, verifica se mudou de dia
+      _checkAndApplySalesIfNewDay();
     }
+  }
+
+  /// Verifica se mudou de dia e aplica vendas automaticamente
+  Future<void> _checkAndApplySalesIfNewDay() async {
+    final now = DateTime.now();
+
+    // Se é um dia diferente de _currentDisplayDate, mostra o diálogo
+    if (!_isSameDay(_currentDisplayDate, now)) {
+      _previousDisplayDate = _currentDisplayDate;
+      _currentDisplayDate = now;
+
+      if (mounted) {
+        await _showApplySalesDialog(_currentDisplayDate);
+      }
+    }
+
+    // Sempre recarrega dados ao retomar
+    _refresh();
+  }
+
+  /// Mostra diálogo para aplicar vendas manualmente (botão no header)
+  Future<void> _applyTodaySales() async {
+    await _showApplySalesDialog(DateTime.now());
   }
 
   Future<void> _initService() async {
     await _service.init();
+    await _inventoryService.init();
     _currentDisplayDate = DateTime.now();
+    _previousDisplayDate = DateTime.now();
     _todayTotals = _service.totalsForSingleDate(_currentDisplayDate);
+
     if (!mounted) return;
     setState(() {
       _counters = _service.counters;
       _loading = false;
     });
+
+    // Após carregar a UI, verifica se há vendas pendentes de aplicar
+    // Isso é feito assincronamente para não bloquear a inicialização
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkPendingSalesAsync();
+    });
+  }
+
+  /// Verifica assincronamente se há vendas pendentes de aplicar
+  Future<void> _checkPendingSalesAsync() async {
+    try {
+      final yesterday = DateTime.now().subtract(const Duration(days: 1));
+      final yesterdayHasSales = _service
+          .totalsForSingleDate(yesterday)
+          .values
+          .any((qty) => qty > 0);
+      final yesterdayAlreadyApplied = await _inventoryService
+          .isDailyDeductionApplied(yesterday);
+
+      if (yesterdayHasSales && !yesterdayAlreadyApplied && mounted) {
+        // Mostra diálogo para aplicar vendas de ontem
+        await _showApplySalesDialog(yesterday);
+      }
+    } catch (e) {
+      // Ignora erros nesta verificação
+    }
   }
 
   Future<void> _refresh() async {
@@ -133,7 +190,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     // Navega para o relatório com o intervalo selecionado
     if (!mounted) return;
-    await Navigator.of(context).push(
+    final reportResult = await Navigator.of(context).push<DateTime>(
       MaterialPageRoute(
         builder: (_) => ReportPage(
           startDate: startDate,
@@ -147,6 +204,123 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         ),
       ),
     );
+
+    // Se voltou com uma data selecionada, atualiza _currentDisplayDate
+    if (reportResult != null) {
+      _previousDisplayDate = _currentDisplayDate;
+      _currentDisplayDate = reportResult;
+
+      // Se a data foi diferente, mostra o diálogo de confirmação
+      if (!_isSameDay(_previousDisplayDate, _currentDisplayDate)) {
+        if (!mounted) return;
+        await _showApplySalesDialog(_currentDisplayDate);
+      }
+    }
+  }
+
+  Future<void> _openStock() async {
+    // Abre a tela de estoque
+    final result = await Navigator.of(
+      context,
+    ).push<bool>(MaterialPageRoute(builder: (_) => const StockPage()));
+
+    // Se algo foi alterado no estoque, atualiza o estado
+    if (result == true) {
+      _refresh();
+    }
+  }
+
+  /// Mostra diálogo de confirmação para aplicar vendas ao estoque
+  Future<void> _showApplySalesDialog(DateTime date) async {
+    if (!mounted) return;
+
+    final isToday = _isToday(date);
+    final dateFormatted = _formatDate(date);
+
+    final result = await showDialog<int>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Aplicar Vendas ao Estoque'),
+        content: Text(
+          'Aplicar as vendas de $dateFormatted ao estoque? '
+          '(Isso vai subtrair as quantidades do estoque desta data).',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, 0), // Cancelar
+            child: const Text('Cancelar'),
+          ),
+          if (!isToday)
+            TextButton(
+              onPressed: () => Navigator.pop(context, 1), // Aplicar sempre
+              child: const Text('Aplicar Sempre'),
+            ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, 2), // Aplicar
+            child: const Text('Aplicar'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == null || result == 0) {
+      return; // Cancelado
+    }
+
+    // Aplica as vendas ao estoque
+    try {
+      final movements = await _inventoryService.applyDailySalesToStock(date);
+
+      // Conta quantos produtos foram efetivamente atualizados
+      final updatedCount = movements
+          .where((m) => m['unmatched'] != true)
+          .length;
+
+      if (!mounted) return;
+
+      // Mostra feedback
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            updatedCount == 0
+                ? 'Nenhum produto foi atualizado nesta data.'
+                : '$updatedCount produto(s) atualizado(s) no estoque!',
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+
+      // Recarrega o inventário
+      _refresh();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao aplicar vendas: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  /// Verifica se uma data é "hoje"
+  bool _isToday(DateTime date) {
+    final now = DateTime.now();
+    return date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day;
+  }
+
+  /// Formata data como dd/MM/yyyy
+  String _formatDate(DateTime date) {
+    return '${date.day.toString().padLeft(2, '0')}/'
+        '${date.month.toString().padLeft(2, '0')}/'
+        '${date.year}';
+  }
+
+  /// Verifica se duas datas são o mesmo dia
+  bool _isSameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
   @override
@@ -200,7 +374,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       body: SafeArea(
         child: Column(
           children: [
-            const AppHeader(title: 'CONTADOR DE COXINHA'),
+            AppHeader(
+              title: 'CONTADOR DE COXINHA',
+              onApplySales: _applyTodaySales,
+            ),
             const Divider(height: 1, thickness: 1),
             Expanded(
               child: PageView(
@@ -263,7 +440,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 );
               },
               onMinus: () => _openAdjustSheet(false),
-              onPlus: () => _openAdjustSheet(true),
+              onStock: _openStock,
               onReport: _openReport,
             ),
           ],
