@@ -2,49 +2,39 @@ import 'package:flutter/material.dart';
 
 class AppHeader extends StatelessWidget {
   final String title;
-  final VoidCallback? onApplySales;
-  const AppHeader({super.key, required this.title, this.onApplySales});
+  const AppHeader({super.key, required this.title});
 
   @override
   Widget build(BuildContext context) {
-    // header com logo/nome centralizado e uma linha abaixo (a linha é desenhada no parent também)
     return SafeArea(
       bottom: false,
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         color: Theme.of(context).scaffoldBackgroundColor,
         child: Column(
           children: [
-            // Linha com título e botão de aplicar vendas
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // aqui pode trocar por Image.asset(...) se tiver logo
-                Expanded(
-                  child: Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary,
-                      letterSpacing: 1.2,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                // Botão para aplicar vendas (se callback fornecido)
-                if (onApplySales != null)
-                  IconButton(
-                    icon: const Icon(Icons.storefront),
-                    tooltip: 'Aplicar Vendas ao Estoque',
-                    onPressed: onApplySales,
-                    splashRadius: 24,
-                  ),
-              ],
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Theme.of(context).colorScheme.primary,
+                letterSpacing: 1.2,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Desenvolvido por Davi Cardoso',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w400,
+                color: Colors.grey[600],
+                fontStyle: FontStyle.italic,
+              ),
             ),
             const SizedBox(height: 6),
-            // linha decorativa menor abaixo do nome
             Container(
               width: 160,
               height: 3,

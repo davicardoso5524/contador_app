@@ -1,14 +1,16 @@
 // lib/pages/home_page.dart
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'more_flavors_page.dart';
 import 'report_range_page.dart';
 import 'report_page.dart';
-import 'stock_page.dart';
+import 'expiry_product_page.dart';
 import '../widgets/app_header.dart';
 import '../widgets/flavor_card.dart';
 import '../widgets/footer_menu.dart';
 import '../services/counter_service.dart';
-import '../services/inventory_service.dart';
+import '../services/notification_service.dart';
+import '../services/expiry_service.dart';
 import '../models/counter.dart';
 
 class HomePage extends StatefulWidget {
@@ -19,29 +21,90 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final CounterService _service = CounterService();
-  final InventoryService _inventoryService = InventoryService();
+  final NotificationService _notificationService = NotificationService();
+  final ExpiryService _expiryService = ExpiryService();
+  
   bool _loading = true;
   List<CounterModel> _counters = [];
   Map<String, int> _todayTotals = {};
   late PageController _pageController;
   final GlobalKey<State> _moreFlavorsKey = GlobalKey<State>();
 
-  // Data atualmente exibida (pode ser hoje ou uma data do relatório)
   late DateTime _currentDisplayDate;
-  late DateTime _previousDisplayDate;
-
-  // Contadores dos novos sabores (Mais Sabores)
   int _churritos = 0;
   int _churrosDoceLeite = 0;
   int _chocolate = 0;
   int _kibes = 0;
+  int _charque = 0;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _pageController = PageController();
-    _initService();
+    _initAllServices();
+  }
+
+  Future<void> _initAllServices() async {
+    await _service.init();
+    _currentDisplayDate = DateTime.now();
+    await _checkNewDayAndReset();
+    await _loadMoreFlavors();
+    
+    try {
+      await _notificationService.init();
+      await _expiryService.checkAndNotify();
+    } catch (e) {
+      debugPrint('Erro nas notificações: $e');
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _counters = _service.counters;
+      _loading = false;
+    });
+
+    _checkAlarmPermission();
+  }
+
+  Future<void> _checkAlarmPermission() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool('asked_alarm_permission') ?? false) return;
+    
+    final canSchedule = await _notificationService.canScheduleExactAlarms();
+    if (!canSchedule && mounted) {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: const Text('Permissão Necessária'),
+          content: const Text(
+            'Para que os alertas de validade funcionem na hora exata, '
+            'é necessário permitir o agendamento de alarmes e lembretes.'
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                await prefs.setBool('asked_alarm_permission', true);
+                if (mounted) Navigator.pop(context);
+              },
+              child: const Text('Não perguntar novamente'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Pular'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                await _notificationService.requestExactAlarmsPermission();
+              },
+              child: const Text('Permitir'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   @override
@@ -54,93 +117,59 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      // Quando o app volta ao primeiro plano, verifica se mudou de dia
-      _checkAndApplySalesIfNewDay();
+      _checkNewDayAndReset();
+      _expiryService.checkAndNotify();
     }
   }
 
-  /// Verifica se mudou de dia e aplica vendas automaticamente
-  Future<void> _checkAndApplySalesIfNewDay() async {
-    final now = DateTime.now();
-
-    // Se é um dia diferente de _currentDisplayDate, mostra o diálogo
-    if (!_isSameDay(_currentDisplayDate, now)) {
-      _previousDisplayDate = _currentDisplayDate;
-      _currentDisplayDate = now;
-
-      if (mounted) {
-        await _showApplySalesDialog(_currentDisplayDate);
-      }
-    }
-
-    // Sempre recarrega dados ao retomar
-    _refresh();
-  }
-
-  /// Mostra diálogo para aplicar vendas manualmente (botão no header)
-  Future<void> _applyTodaySales() async {
-    await _showApplySalesDialog(DateTime.now());
-  }
-
-  Future<void> _initService() async {
-    await _service.init();
-    await _inventoryService.init();
-    _currentDisplayDate = DateTime.now();
-    _previousDisplayDate = DateTime.now();
-    _todayTotals = _service.totalsForSingleDate(_currentDisplayDate);
-
+  Future<void> _loadMoreFlavors() async {
+    final c = await _service.getMoreFlavorCountForDate('churritos', _currentDisplayDate);
+    final d = await _service.getMoreFlavorCountForDate('doce-de-leite', _currentDisplayDate);
+    final ch = await _service.getMoreFlavorCountForDate('chocolate', _currentDisplayDate);
+    final k = await _service.getMoreFlavorCountForDate('kibes', _currentDisplayDate);
+    final cq = await _service.getMoreFlavorCountForDate('charque', _currentDisplayDate);
+    
     if (!mounted) return;
     setState(() {
-      _counters = _service.counters;
-      _loading = false;
-    });
-
-    // Após carregar a UI, verifica se há vendas pendentes de aplicar
-    // Isso é feito assincronamente para não bloquear a inicialização
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkPendingSalesAsync();
+      _churritos = c;
+      _churrosDoceLeite = d;
+      _chocolate = ch;
+      _kibes = k;
+      _charque = cq;
+      _todayTotals = _service.totalsForSingleDate(_currentDisplayDate);
     });
   }
 
-  /// Verifica assincronamente se há vendas pendentes de aplicar
-  Future<void> _checkPendingSalesAsync() async {
-    try {
-      final yesterday = DateTime.now().subtract(const Duration(days: 1));
-      final yesterdayHasSales = _service
-          .totalsForSingleDate(yesterday)
-          .values
-          .any((qty) => qty > 0);
-      final yesterdayAlreadyApplied = await _inventoryService
-          .isDailyDeductionApplied(yesterday);
+  Future<void> _checkNewDayAndReset() async {
+    final now = DateTime.now();
+    final prefs = await SharedPreferences.getInstance();
+    final lastOpenStr = prefs.getString('last_open_date');
+    final todayStr = "${now.year}-${now.month}-${now.day}";
 
-      if (yesterdayHasSales && !yesterdayAlreadyApplied && mounted) {
-        // Mostra diálogo para aplicar vendas de ontem
-        await _showApplySalesDialog(yesterday);
-      }
-    } catch (e) {
-      // Ignora erros nesta verificação
+    if (lastOpenStr != todayStr) {
+      await prefs.setString('last_open_date', todayStr);
+      await _service.resetAll();
+      _currentDisplayDate = now;
+      await _loadMoreFlavors();
+    } else {
+      _refresh();
     }
   }
 
   Future<void> _refresh() async {
     setState(() {
       _counters = _service.counters;
-      // Mantém a data atual (pode ser hoje ou uma data selecionada no relatório)
       _todayTotals = _service.totalsForSingleDate(_currentDisplayDate);
     });
   }
 
   Future<void> _increment(String id) async {
     try {
-      // Incrementa para a data atualmente exibida (não apenas hoje)
       await _service.applyDelta(id, 1, _currentDisplayDate);
-      // Não chama _refresh() aqui - apenas atualiza o display sem I/O
       setState(() {
         _todayTotals = _service.totalsForSingleDate(_currentDisplayDate);
       });
-    } catch (e) {
-      // Erro ignorado
-    }
+    } catch (e) {}
   }
 
   void _openAdjustSheet(bool isIncrement) {
@@ -157,6 +186,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           'doce-de-leite': _churrosDoceLeite,
           'chocolate': _chocolate,
           'kibes': _kibes,
+          'charque': _charque,
         },
         onUpdateMoreFlavors: (Map<String, int> data) {
           setState(() {
@@ -164,11 +194,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             _churrosDoceLeite = data['doce-de-leite'] ?? 0;
             _chocolate = data['chocolate'] ?? 0;
             _kibes = data['kibes'] ?? 0;
+            _charque = data['charque'] ?? 0;
           });
-          // Atualiza o MoreFlavorsPage também
           final state = _moreFlavorsKey.currentState;
           if (state != null) {
-            // Força rebuild do MoreFlavorsPage
             state.setState(() {});
           }
         },
@@ -177,18 +206,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   void _openReport() async {
-    // → ReportPage (mostrar por dia + resumo) com todos os 10 sabores listados
-    // Primeiro, abre a tela de seleção de intervalo
     final result = await Navigator.of(context).push<Map<String, DateTime>>(
       MaterialPageRoute(builder: (_) => const ReportRangePage()),
     );
-
     if (result == null) return;
-
     final startDate = result['startDate'] as DateTime;
     final endDate = result['endDate'] as DateTime;
-
-    // Navega para o relatório com o intervalo selecionado
     if (!mounted) return;
     final reportResult = await Navigator.of(context).push<DateTime>(
       MaterialPageRoute(
@@ -200,205 +223,48 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             'doce-de-leite': _churrosDoceLeite,
             'chocolate': _chocolate,
             'kibes': _kibes,
+            'charque': _charque,
           },
         ),
       ),
     );
-
-    // Se voltou com uma data selecionada, atualiza _currentDisplayDate
     if (reportResult != null) {
-      _previousDisplayDate = _currentDisplayDate;
-      _currentDisplayDate = reportResult;
-
-      // Se a data foi diferente, mostra o diálogo de confirmação
-      if (!_isSameDay(_previousDisplayDate, _currentDisplayDate)) {
-        if (!mounted) return;
-        await _showApplySalesDialog(_currentDisplayDate);
-      }
+      setState(() {
+        _currentDisplayDate = reportResult;
+        _todayTotals = _service.totalsForSingleDate(_currentDisplayDate);
+      });
+      _loadMoreFlavors();
     }
-  }
-
-  Future<void> _openStock() async {
-    // Abre a tela de estoque
-    final result = await Navigator.of(
-      context,
-    ).push<bool>(MaterialPageRoute(builder: (_) => const StockPage()));
-
-    // Se algo foi alterado no estoque, atualiza o estado
-    if (result == true) {
-      _refresh();
-    }
-  }
-
-  /// Mostra diálogo de confirmação para aplicar vendas ao estoque
-  Future<void> _showApplySalesDialog(DateTime date) async {
-    if (!mounted) return;
-
-    final isToday = _isToday(date);
-    final dateFormatted = _formatDate(date);
-
-    final result = await showDialog<int>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Aplicar Vendas ao Estoque'),
-        content: Text(
-          'Aplicar as vendas de $dateFormatted ao estoque? '
-          '(Isso vai subtrair as quantidades do estoque desta data).',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, 0), // Cancelar
-            child: const Text('Cancelar'),
-          ),
-          if (!isToday)
-            TextButton(
-              onPressed: () => Navigator.pop(context, 1), // Aplicar sempre
-              child: const Text('Aplicar Sempre'),
-            ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, 2), // Aplicar
-            child: const Text('Aplicar'),
-          ),
-        ],
-      ),
-    );
-
-    if (result == null || result == 0) {
-      return; // Cancelado
-    }
-
-    // Aplica as vendas ao estoque
-    try {
-      final movements = await _inventoryService.applyDailySalesToStock(date);
-
-      // Conta quantos produtos foram efetivamente atualizados
-      final updatedCount = movements
-          .where((m) => m['unmatched'] != true)
-          .length;
-
-      if (!mounted) return;
-
-      // Mostra feedback
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            updatedCount == 0
-                ? 'Nenhum produto foi atualizado nesta data.'
-                : '$updatedCount produto(s) atualizado(s) no estoque!',
-          ),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-
-      // Recarrega o inventário
-      _refresh();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Erro ao aplicar vendas: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  /// Verifica se uma data é "hoje"
-  bool _isToday(DateTime date) {
-    final now = DateTime.now();
-    return date.year == now.year &&
-        date.month == now.month &&
-        date.day == now.day;
-  }
-
-  /// Formata data como dd/MM/yyyy
-  String _formatDate(DateTime date) {
-    return '${date.day.toString().padLeft(2, '0')}/'
-        '${date.month.toString().padLeft(2, '0')}/'
-        '${date.year}';
-  }
-
-  /// Verifica se duas datas são o mesmo dia
-  bool _isSameDay(DateTime a, DateTime b) {
-    return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-
-    // Pega o tamanho da tela para calcular responsividade
+    if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
     final screenWidth = MediaQuery.of(context).size.width;
-    // final screenHeight = MediaQuery.of(context).size.height;
-
-    // Define número de colunas baseado na largura da tela
-    int crossAxisCount = 2;
-    double childAspectRatio = 0.95;
-    double horizontalPadding = 12.0;
-    double verticalPadding = 16.0;
-    double spacing = 18.0;
-
-    // Ajustes para telas pequenas (como A06)
-    if (screenWidth < 360) {
-      // Telas muito pequenas
-      crossAxisCount = 2;
-      childAspectRatio = 0.85;
-      horizontalPadding = 8.0;
-      verticalPadding = 12.0;
-      spacing = 12.0;
-    } else if (screenWidth < 400) {
-      // Telas pequenas
-      crossAxisCount = 2;
-      childAspectRatio = 0.90;
-      horizontalPadding = 10.0;
-      verticalPadding = 14.0;
-      spacing = 14.0;
-    } else if (screenWidth > 600) {
-      // Tablets
-      crossAxisCount = 3;
-      childAspectRatio = 1.0;
-    }
-
-    final colors = [
-      Colors.amber,
-      Colors.deepOrange,
-      const Color(0xFF8B5A2B),
-      Colors.blue,
-      Colors.red,
-      Colors.green,
-    ];
-
+    int crossAxisCount = screenWidth > 600 ? 3 : 2;
     return Scaffold(
       body: SafeArea(
         child: Column(
           children: [
-            AppHeader(
-              title: 'CONTADOR DE COXINHA',
-              onApplySales: _applyTodaySales,
-            ),
+            const AppHeader(title: 'CONTADOR DE COXINHA'),
             const Divider(height: 1, thickness: 1),
             Expanded(
               child: PageView(
                 controller: _pageController,
                 children: [
-                  // Página 1: Sabores de Coxinha
                   Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: horizontalPadding,
-                      vertical: verticalPadding,
-                    ),
+                    padding: const EdgeInsets.all(16),
                     child: GridView.builder(
                       itemCount: _counters.length,
                       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: crossAxisCount,
-                        mainAxisSpacing: spacing,
-                        crossAxisSpacing: spacing,
-                        childAspectRatio: childAspectRatio,
+                        mainAxisSpacing: 18,
+                        crossAxisSpacing: 18,
+                        childAspectRatio: 0.95,
                       ),
                       itemBuilder: (context, index) {
                         final c = _counters[index];
+                        final colors = [Colors.amber, Colors.deepOrange, const Color(0xFF8B5A2B), Colors.blue, Colors.red, Colors.green];
                         return FlavorCard(
                           flavorName: c.name,
                           color: colors[index % colors.length],
@@ -408,13 +274,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       },
                     ),
                   ),
-                  // Página 2: Mais Sabores
                   MoreFlavorsPage(
                     key: _moreFlavorsKey,
                     churritos: _churritos,
                     doceDeLeite: _churrosDoceLeite,
                     chocolate: _chocolate,
                     kibes: _kibes,
+                    charque: _charque,
                     counterService: _service,
                     currentDate: _currentDisplayDate,
                     onCountersChanged: (data) {
@@ -423,6 +289,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         _churrosDoceLeite = data['doce-de-leite'] ?? 0;
                         _chocolate = data['chocolate'] ?? 0;
                         _kibes = data['kibes'] ?? 0;
+                        _charque = data['charque'] ?? 0;
                       });
                     },
                   ),
@@ -431,17 +298,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             ),
             const Divider(height: 1, thickness: 1),
             FooterMenu(
-              onHome: () {
-                // Vai para a primeira página (sabores de coxinha)
-                _pageController.animateToPage(
-                  0,
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-                );
-              },
               onMinus: () => _openAdjustSheet(false),
-              onStock: _openStock,
               onReport: _openReport,
+              onInventory: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ExpiryProductPage())),
             ),
           ],
         ),
@@ -450,7 +309,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 }
 
-/// Bottom sheet para ajustar contagens (increment/decrement em lote)
 class _AdjustSheet extends StatefulWidget {
   final CounterService service;
   final bool isIncrement;
@@ -477,7 +335,6 @@ class _AdjustSheetState extends State<_AdjustSheet> {
   int _quantity = 1;
   List<CounterModel> _items = [];
 
-  // Dados dos novos sabores
   late Map<String, int> _moreFlavorsData;
   bool _isMoreFlavor = false;
 
@@ -493,22 +350,17 @@ class _AdjustSheetState extends State<_AdjustSheet> {
     if (_selectedId == null) return;
     final delta = widget.isIncrement ? _quantity : -_quantity;
 
-    // Se for um novo sabor (Mais Sabores)
     if (_isMoreFlavor) {
       final currentValue = _moreFlavorsData[_selectedId] ?? 0;
       final newValue = currentValue + delta;
 
-      // Não permite valores negativos
       if (newValue < 0) return;
 
       _moreFlavorsData[_selectedId!] = newValue;
       if (mounted && widget.onUpdateMoreFlavors != null) {
         widget.onUpdateMoreFlavors!(_moreFlavorsData);
 
-        // Atualiza o MoreFlavorsPage imediatamente
-        // Precisamos acessar o widget de Home para conseguir a key
         if (context.mounted) {
-          // Espera um frame para garantir a execução
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {
               Navigator.pop(context);
@@ -522,7 +374,6 @@ class _AdjustSheetState extends State<_AdjustSheet> {
       return;
     }
 
-    // Verifica se a operação vai resultar em valor negativo
     if (!widget.isIncrement) {
       final currentItem = _items.firstWhere((item) => item.id == _selectedId);
       if (currentItem.value < _quantity) {
@@ -546,7 +397,6 @@ class _AdjustSheetState extends State<_AdjustSheet> {
     final screenHeight = MediaQuery.of(context).size.height;
     final screenWidth = MediaQuery.of(context).size.width;
 
-    // Ajusta padding para telas menores
     final horizontalPadding = screenWidth < 360 ? 12.0 : 16.0;
     final topPadding = screenWidth < 360 ? 8.0 : 12.0;
 
@@ -576,7 +426,6 @@ class _AdjustSheetState extends State<_AdjustSheet> {
               DropdownButtonFormField<String>(
                 initialValue: _selectedId,
                 items: [
-                  // Sabores de Coxinha
                   ..._items.map(
                     (c) => DropdownMenuItem(
                       value: c.id,
@@ -586,13 +435,11 @@ class _AdjustSheetState extends State<_AdjustSheet> {
                       ),
                     ),
                   ),
-                  // Divider visual
                   if (_moreFlavorsData.isNotEmpty)
                     DropdownMenuItem(
                       enabled: false,
                       child: Divider(color: Colors.grey[400], thickness: 1),
                     ),
-                  // Novos Sabores (Mais Sabores)
                   if (_moreFlavorsData.isNotEmpty)
                     DropdownMenuItem(
                       value: 'churritos',
@@ -622,6 +469,14 @@ class _AdjustSheetState extends State<_AdjustSheet> {
                       value: 'kibes',
                       child: Text(
                         'Kibes',
+                        style: TextStyle(fontSize: screenWidth < 360 ? 14 : 16),
+                      ),
+                    ),
+                  if (_moreFlavorsData.isNotEmpty)
+                    DropdownMenuItem(
+                      value: 'charque',
+                      child: Text(
+                        'Charque',
                         style: TextStyle(fontSize: screenWidth < 360 ? 14 : 16),
                       ),
                     ),
@@ -701,10 +556,8 @@ class _AdjustSheetState extends State<_AdjustSheet> {
                           : 1 + _moreFlavorsData.length),
                   separatorBuilder: (_, _) => const Divider(height: 1),
                   itemBuilder: (context, i) {
-                    // Sabores de Coxinha
                     if (i < _items.length) {
                       final it = _items[i];
-                      // Mostra o valor do dia de hoje em vez do total acumulado
                       final todayTotals = widget.service.totalsForSingleDate(
                         DateTime.now(),
                       );
@@ -735,11 +588,9 @@ class _AdjustSheetState extends State<_AdjustSheet> {
                       );
                     }
 
-                    // Seção "Mais Sabores"
                     final moreFlavorIndex = i - _items.length;
 
                     if (moreFlavorIndex == 0) {
-                      // Header para "Mais Sabores"
                       return Padding(
                         padding: EdgeInsets.symmetric(
                           horizontal: screenWidth < 360 ? 8 : 16,
@@ -756,19 +607,20 @@ class _AdjustSheetState extends State<_AdjustSheet> {
                       );
                     }
 
-                    // Sabores de Mais Sabores
                     final flavorIndex = moreFlavorIndex - 1;
                     final flavorNames = [
                       'Churritos',
                       'Doce de Leite',
                       'Chocolate',
                       'Kibes',
+                      'Charque',
                     ];
                     final flavorKeys = [
                       'churritos',
                       'doce-de-leite',
                       'chocolate',
                       'kibes',
+                      'charque',
                     ];
 
                     if (flavorIndex >= 0 && flavorIndex < flavorKeys.length) {

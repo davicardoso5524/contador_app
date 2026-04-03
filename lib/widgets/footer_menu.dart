@@ -2,17 +2,15 @@
 import 'package:flutter/material.dart';
 
 class FooterMenu extends StatelessWidget {
-  final VoidCallback onHome;
   final VoidCallback onMinus;
-  final VoidCallback onStock;
   final VoidCallback onReport;
+  final VoidCallback onInventory;
 
   const FooterMenu({
     super.key,
-    required this.onHome,
     required this.onMinus,
-    required this.onStock,
     required this.onReport,
+    required this.onInventory,
   });
 
   @override
@@ -22,7 +20,6 @@ class FooterMenu extends StatelessWidget {
     final screenWidth = MediaQuery.of(context).size.width;
     final isCompact = screenWidth < 360;
 
-    // tamanho mínimo dos botões circulares
     final buttonMinSize = Size(isCompact ? 44 : 52, isCompact ? 44 : 52);
 
     return SafeArea(
@@ -36,14 +33,14 @@ class FooterMenu extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              // HOME
+              // PRODUTOS / VALIDADE
               IconButton(
-                onPressed: onHome,
-                icon: const Icon(Icons.home_outlined),
+                onPressed: onInventory,
+                icon: const Icon(Icons.inventory_2_outlined),
                 splashRadius: 24,
               ),
 
-              // DIMINUIR — AGORA IGUAL AO “+”
+              // BOTÃO CENTRAL: DIMINUIR
               ElevatedButton(
                 onPressed: onMinus,
                 style: ElevatedButton.styleFrom(
@@ -55,13 +52,6 @@ class FooterMenu extends StatelessWidget {
                   foregroundColor: Theme.of(context).colorScheme.primary,
                 ),
                 child: const Icon(Icons.remove, size: 28),
-              ),
-
-              // ESTOQUE (substituiu "ADICIONAR")
-              IconButton(
-                onPressed: onStock,
-                icon: const Icon(Icons.storefront),
-                splashRadius: 24,
               ),
 
               // RELATÓRIO

@@ -3,9 +3,9 @@
 ///
 /// Inclui:
 /// - Sabores originais: Frango, Frango c/ Bacon, Carne do Sol, Queijo, Calabresa, Pizza
-/// - Sabores adicionais: Churritos, Doce de Leite, Chocolate, Kibes
+/// - Sabores adicionais: Churritos, Doce de Leite, Chocolate, Kibes, Charque
 ///
-/// Uso no relatório: allFlavorIds percorre todos os 10 sabores (0 se não vendido naquele dia)
+/// Uso no relatório: allFlavorIds percorre todos os 11 sabores (0 se não vendido naquele dia)
 library;
 
 class Flavors {
@@ -41,6 +41,9 @@ class Flavors {
   static const String idKibes = 'kibes';
   static const String nameKibes = 'Kibes';
 
+  static const String idCharque = 'charque';
+  static const String nameCharque = 'Charque';
+
   /// Lista de todos os sabores (originais + adicionais) com ID e nome
   static const List<Map<String, String>> allFlavors = [
     {'id': idFrango, 'name': nameFrango},
@@ -53,6 +56,7 @@ class Flavors {
     {'id': idDocedeLeite, 'name': nameDocedeLeite},
     {'id': idChocolate, 'name': nameChocolate},
     {'id': idKibes, 'name': nameKibes},
+    {'id': idCharque, 'name': nameCharque},
   ];
 
   /// Mapa de ID -> Nome para busca rápida
@@ -72,6 +76,7 @@ class Flavors {
     idDocedeLeite,
     idChocolate,
     idKibes,
+    idCharque,
   ];
 
   /// Retorna o nome do sabor pela ID

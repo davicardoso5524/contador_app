@@ -36,6 +36,7 @@ class AppColors {
   static const Color churrosDoceLeiteColor = Colors.red;
   static const Color chocolateColor = Colors.brown;
   static const Color kibesColor = Colors.amber;
+  static const Color charqueColor = Colors.deepOrange;
 
   // Cores da interface
   static const Color primaryAccent = Colors.blue;
@@ -66,5 +67,6 @@ class AppColors {
     'doce-de-leite': churrosDoceLeiteColor,
     'chocolate': chocolateColor,
     'kibes': kibesColor,
+    'charque': charqueColor,
   };
 }
